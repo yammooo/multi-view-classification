@@ -7,7 +7,9 @@ import seaborn as sns
 import datetime
 from data_generator import MultiViewDataGenerator
 import sys
-sys.path.append("..")
+
+# Add the project root directory to Python path
+sys.path.append("/home/yammo/C:/Users/gianm/Development/multi-view-classification")
 from models.multi_view_model import build_multi_view_model
 
 # Set random seeds for reproducibility
@@ -127,7 +129,7 @@ def visualize_predictions(model, test_dataset, class_names, num_samples=5):
 
 def main():
     # Data parameters
-    data_dir = "../data"  # Update to your dataset path
+    data_dir = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset"
     input_shape = (512, 512, 3)
     batch_size = 8
     
@@ -203,7 +205,7 @@ def main():
     history = model.fit(
         train_ds,
         validation_data=test_ds,
-        epochs=50,
+        epochs=10,
         callbacks=callbacks
     )
     
@@ -234,59 +236,5 @@ def main():
     
     print(f"All results saved to {output_dir}")
     
-    # Phase 2: Fine-tuning (optional)
-    print("Starting fine-tuning phase...")
-    
-    # Unfreeze some layers for fine-tuning
-    # For each branch model, unfreeze the last convolutional block
-    for layer in model.layers:
-        if isinstance(layer, tf.keras.Model):  # This is a branch model
-            # Get the base model inside the branch
-            base_model = layer.layers[0]
-            # Unfreeze the last few layers (e.g., last 20 layers)
-            for i in range(len(base_model.layers)-20, len(base_model.layers)):
-                if hasattr(base_model.layers[i], 'trainable'):
-                    base_model.layers[i].trainable = True
-    
-    # Recompile with lower learning rate
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(1e-5),
-        loss='categorical_crossentropy',
-        metrics=['accuracy']
-    )
-    
-    # Continue training
-    fine_tune_history = model.fit(
-        train_ds,
-        validation_data=test_ds,
-        epochs=30,
-        callbacks=[
-            tf.keras.callbacks.ModelCheckpoint(
-                filepath=os.path.join(output_dir, 'model_fine_tuned.h5'),
-                monitor='val_accuracy',
-                save_best_only=True,
-                save_weights_only=False,
-                verbose=1
-            ),
-            tf.keras.callbacks.EarlyStopping(
-                monitor='val_accuracy',
-                patience=10,
-                restore_best_weights=True,
-                verbose=1
-            )
-        ]
-    )
-    
-    # Evaluate fine-tuned model
-    print("Evaluating fine-tuned model...")
-    report_ft, cm_fig_ft, _, _ = evaluate_model(model, test_ds, class_names)
-    cm_fig_ft.savefig(os.path.join(output_dir, 'confusion_matrix_fine_tuned.png'))
-    plt.close(cm_fig_ft)
-    
-    with open(os.path.join(output_dir, 'classification_report_fine_tuned.txt'), 'w') as f:
-        f.write(report_ft)
-    
-    print("Fine-tuning complete!")
-
 if __name__ == "__main__":
     main()

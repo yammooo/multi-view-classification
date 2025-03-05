@@ -38,11 +38,15 @@ class MultiViewDataGenerator:
         # Create augmentation layers
         self.augmentation = tf.keras.Sequential([
             tf.keras.layers.RandomFlip("horizontal"),
-            tf.keras.layers.RandomRotation(0.1),
-            tf.keras.layers.RandomZoom(0.1),
-            tf.keras.layers.RandomContrast(0.1),
-        ])
-        
+            #tf.keras.layers.RandomRotation(0.1),
+            #tf.keras.layers.RandomZoom(0.1),
+            #tf.keras.layers.RandomContrast(0.2),
+            #tf.keras.layers.RandomBrightness(0.2),
+            #tf.keras.layers.RandomTranslation(0.1, 0.1),
+            #tf.keras.layers.RandomHue(0.1),
+            #tf.keras.layers.RandomSaturation(0.2),
+        ])        
+
         # Parse dataset structure and prepare data
         self._parse_dataset()
         self._split_dataset()
@@ -69,10 +73,7 @@ class MultiViewDataGenerator:
             cat_dir = os.path.join(self.data_dir, category)
             
             # Check if all view directories exist
-            view_dirs = [f"view_{i+1}" for i in range(self.num_views)]
-            for view_dir in view_dirs:
-                if not os.path.isdir(os.path.join(cat_dir, view_dir)):
-                    raise ValueError(f"View directory {view_dir} not found in {category}")
+            view_dirs = ["back_left", "back_right", "front_left", "front_right", "top"]
             
             # Process each view directory
             for view_idx, view_dir in enumerate(view_dirs):
@@ -109,7 +110,7 @@ class MultiViewDataGenerator:
         """Split dataset into training and testing by UIDs."""
         # Split UIDs into training and testing sets
         train_uids, test_uids = train_test_split(
-            self.complete_uids, 
+            self.complete_uids,
             test_size=self.test_split,
             random_state=self.random_state,
             stratify=[self.objects_by_uid[uid]['category'] for uid in self.complete_uids]
@@ -167,7 +168,7 @@ class MultiViewDataGenerator:
                     # One-hot encode the label
                     batch_labels[i, obj_data['category_idx']] = 1.0
                 
-                yield batch_views, batch_labels
+                    yield tuple(batch_views), batch_labels
     
     def get_train_dataset(self, augment=True):
         """Get TensorFlow Dataset for training."""
@@ -253,8 +254,7 @@ class MultiViewDataGenerator:
 
 if __name__ == "__main__":
     # Example usage
-    data_dir = "../data"  # Update this to your dataset path
-    
+    data_dir = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset"
     print("Creating data generator...")
     data_gen = MultiViewDataGenerator(
         data_dir=data_dir,
@@ -262,22 +262,6 @@ if __name__ == "__main__":
         batch_size=4
     )
     
-    # Get datasets
-    train_ds = data_gen.get_train_dataset()
-    test_ds = data_gen.get_test_dataset()
-    
-    # Print class names
-    class_names = data_gen.get_class_names()
-    print(f"Classes: {class_names}")
-    
-    # Check a batch from the training set
-    print("Fetching a batch from training set...")
-    for views, labels in train_ds.take(1):
-        print(f"Number of views: {len(views)}")
-        for i, view in enumerate(views):
-            print(f"View {i+1} shape: {view.shape}")
-        print(f"Labels shape: {labels.shape}")
-        
-        # Get class name for first sample
-        class_idx = np.argmax(labels[0])
-        print(f"First sample class: {class_names[class_idx]}")
+    # Visualize augmented images
+    fig = data_gen.visualize_batch(augmented=True)
+    plt.show()  # This displays the plot window

@@ -1,0 +1,33 @@
+# To create the conda environment, run:
+# conda env create -f requirements.yml
+name: multi-view-classification
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip=25.0
+  - jupyter
+  - scikit-learn
+  - scipy
+  - pandas
+  - pandas-datareader
+  - matplotlib
+  - pillow
+  - tqdm
+  - requests
+  - h5py
+  - pyyaml
+  - flask
+  - boto3
+  - ipykernel
+  - pip:
+      - -r requirements-tensorflow-cuda.txt
+      - bayesian-optimization
+      - gym
+      - kaggle
+      - transformers
+      - scikeras
+      - opencv_python==4.11.0.86
+      - numpy==1.26
+      - pypylon==4.1.0
