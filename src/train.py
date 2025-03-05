@@ -130,8 +130,8 @@ def visualize_predictions(model, test_dataset, class_names, num_samples=5):
 def main():
     # Data parameters
     data_dir = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset"
-    input_shape = (512, 512, 3)
-    batch_size = 8
+    input_shape = (224, 224, 3)
+    batch_size = 4
     
     # Initialize data generator
     print("Initializing data generator...")
@@ -218,6 +218,7 @@ def main():
     history_fig.savefig(os.path.join(output_dir, 'training_history.png'))
     plt.close(history_fig)
     
+
     # Evaluate model
     print("Evaluating model on test dataset...")
     report, cm_fig, y_true, y_pred = evaluate_model(model, test_ds, class_names)

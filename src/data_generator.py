@@ -168,7 +168,7 @@ class MultiViewDataGenerator:
                     # One-hot encode the label
                     batch_labels[i, obj_data['category_idx']] = 1.0
                 
-                    yield tuple(batch_views), batch_labels
+                yield tuple(batch_views), batch_labels
     
     def get_train_dataset(self, augment=True):
         """Get TensorFlow Dataset for training."""
