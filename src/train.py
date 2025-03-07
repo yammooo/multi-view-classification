@@ -10,128 +10,18 @@ import sys
 
 # Add the project root directory to Python path
 sys.path.append("/home/yammo/C:/Users/gianm/Development/multi-view-classification")
+from model_evaluation import plot_training_history, evaluate_model, visualize_wrong_predictions
 from models.multi_view_model import build_multi_view_model
 
 # Set random seeds for reproducibility
 np.random.seed(42)
 tf.random.set_seed(42)
 
-def plot_training_history(history):
-    """Plot the training and validation accuracy/loss curves."""
-    acc = history.history['accuracy']
-    val_acc = history.history['val_accuracy']
-    loss = history.history['loss']
-    val_loss = history.history['val_loss']
-    
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(acc, label='Training Accuracy')
-    plt.plot(val_acc, label='Validation Accuracy')
-    plt.legend(loc='lower right')
-    plt.ylabel('Accuracy')
-    plt.xlabel('Epoch')
-    plt.title('Training and Validation Accuracy')
-    
-    plt.subplot(1, 2, 2)
-    plt.plot(loss, label='Training Loss')
-    plt.plot(val_loss, label='Validation Loss')
-    plt.legend(loc='upper right')
-    plt.ylabel('Cross Entropy')
-    plt.xlabel('Epoch')
-    plt.title('Training and Validation Loss')
-    
-    plt.tight_layout()
-    return plt.gcf()
-
-def plot_confusion_matrix(y_true, y_pred, class_names):
-    """Plot confusion matrix."""
-    cm = confusion_matrix(y_true, y_pred)
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
-                xticklabels=class_names, 
-                yticklabels=class_names)
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title('Confusion Matrix')
-    plt.tight_layout()
-    return plt.gcf()
-
-def evaluate_model(model, test_dataset, class_names):
-    """Evaluate model on the test dataset."""
-    # Collect all predictions and true labels
-    y_true = []
-    y_pred = []
-    
-    for views, labels in test_dataset:
-        # Get predictions
-        batch_preds = model.predict(views)
-        
-        # Convert to class indices
-        batch_pred_classes = np.argmax(batch_preds, axis=1)
-        batch_true_classes = np.argmax(labels.numpy(), axis=1)
-        
-        # Append to lists
-        y_true.extend(batch_true_classes)
-        y_pred.extend(batch_pred_classes)
-    
-    # Generate classification report
-    report = classification_report(y_true, y_pred, target_names=class_names)
-    print("Classification Report:")
-    print(report)
-    
-    # Plot confusion matrix
-    cm_fig = plot_confusion_matrix(y_true, y_pred, class_names)
-    
-    return report, cm_fig, y_true, y_pred
-
-def visualize_predictions(model, test_dataset, class_names, num_samples=5):
-    """Visualize model predictions on test samples."""
-    for views, labels in test_dataset.take(1):  # Take one batch
-        # Get predictions
-        preds = model.predict(views)
-        pred_classes = np.argmax(preds, axis=1)
-        true_classes = np.argmax(labels.numpy(), axis=1)
-        
-        # Create figure
-        fig = plt.figure(figsize=(20, 4 * min(num_samples, len(views[0]))))
-        
-        for i in range(min(num_samples, len(views[0]))):
-            # Get true and predicted classes
-            true_class = true_classes[i]
-            pred_class = pred_classes[i]
-            
-            # Display all views of this sample
-            for v in range(len(views)):
-                # Reverse preprocess_input for display
-                image = views[v][i].numpy()
-                image = image + np.array([103.939, 116.779, 123.68])  # BGR means for ResNet50
-                image = image[..., ::-1]  # BGR to RGB
-                image = np.clip(image, 0, 255).astype('uint8')
-                
-                ax = fig.add_subplot(num_samples, len(views), i*len(views) + v + 1)
-                ax.imshow(image)
-                
-                if v == 0:
-                    ax.set_ylabel(f"Sample {i+1}")
-                
-                if i == 0:
-                    ax.set_title(f"View {v+1}")
-                
-                ax.axis('off')
-            
-            # Add prediction result
-            result_text = f"True: {class_names[true_class]}\nPred: {class_names[pred_class]}"
-            color = 'green' if true_class == pred_class else 'red'
-            fig.text(0.02, 0.9 - (i * 0.2), result_text, fontsize=12, color=color)
-        
-        plt.tight_layout()
-        return fig
-
 def main():
     # Data parameters
     data_dir = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset"
     input_shape = (224, 224, 3)
-    batch_size = 4
+    batch_size = 8
     
     # Initialize data generator
     print("Initializing data generator...")
@@ -149,7 +39,7 @@ def main():
     
     # Create output directory for results
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    output_dir = f"../results/run_{timestamp}"
+    output_dir = f"results/run_{timestamp}"
     os.makedirs(output_dir, exist_ok=True)
     
     # Visualize some augmented data
@@ -176,7 +66,7 @@ def main():
     # Create callbacks
     callbacks = [
         tf.keras.callbacks.ModelCheckpoint(
-            filepath=os.path.join(output_dir, 'model_best.h5'),
+            filepath=os.path.join(output_dir, 'model_best.keras'),
             monitor='val_accuracy',
             save_best_only=True,
             save_weights_only=False,
@@ -199,18 +89,28 @@ def main():
             log_dir=os.path.join(output_dir, 'logs')
         )
     ]
+        
+    # Compute steps per epoch based on the flattened sample lists (train_samples, test_samples)
+    steps_per_epoch = len(data_gen.train_samples) // batch_size
+    if len(data_gen.train_samples) % batch_size != 0:
+        steps_per_epoch += 1
     
-    # Train model
-    print("Training model...")
+    validation_steps = len(data_gen.test_samples) // batch_size
+    if len(data_gen.test_samples) % batch_size != 0:
+        validation_steps += 1
+    
+    # Then pass these to model.fit so the epoch stops once the dataset is exhausted:
     history = model.fit(
         train_ds,
         validation_data=test_ds,
-        epochs=10,
-        callbacks=callbacks
+        epochs=1,
+        callbacks=callbacks,
+        steps_per_epoch=steps_per_epoch,
+        validation_steps=validation_steps
     )
     
     # Save the final model
-    model.save(os.path.join(output_dir, 'model_final.h5'))
+    model.save(os.path.join(output_dir, 'model_final.keras'))
     
     # Plot training history
     print("Plotting training history...")
@@ -221,7 +121,7 @@ def main():
 
     # Evaluate model
     print("Evaluating model on test dataset...")
-    report, cm_fig, y_true, y_pred = evaluate_model(model, test_ds, class_names)
+    report, cm_fig, y_true, y_pred = evaluate_model(model, test_ds, class_names, validation_steps)
     cm_fig.savefig(os.path.join(output_dir, 'confusion_matrix.png'))
     plt.close(cm_fig)
     
@@ -231,9 +131,10 @@ def main():
     
     # Visualize predictions
     print("Visualizing model predictions...")
-    pred_fig = visualize_predictions(model, test_ds, class_names)
-    pred_fig.savefig(os.path.join(output_dir, 'predictions.png'))
-    plt.close(pred_fig)
+    pred_wrong_fig = visualize_wrong_predictions(model, test_ds, class_names)
+    if pred_wrong_fig:
+        pred_wrong_fig.savefig(os.path.join(output_dir, 'wrong_predictions.png'))
+        plt.close(pred_wrong_fig)
     
     print(f"All results saved to {output_dir}")
     

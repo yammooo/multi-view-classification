@@ -45,7 +45,7 @@ class MultiViewDataGenerator:
             #tf.keras.layers.RandomTranslation(0.1, 0.1),
             #tf.keras.layers.RandomHue(0.1),
             #tf.keras.layers.RandomSaturation(0.2),
-        ])        
+        ])
 
         # Parse dataset structure and prepare data
         self._parse_dataset()
@@ -91,12 +91,12 @@ class MultiViewDataGenerator:
                         self.objects_by_uid[uid] = {
                             'category': category,
                             'category_idx': idx,
-                            'views': [None] * self.num_views
+                            'views': [[] for _ in range(self.num_views)]
                         }
                     
                     # Add image path for this view
                     img_path = os.path.join(view_path, img_file)
-                    self.objects_by_uid[uid]['views'][view_idx] = img_path
+                    self.objects_by_uid[uid]['views'][view_idx].append(img_path)
         
         # Filter out objects that don't have all views
         self.complete_uids = [uid for uid, data in self.objects_by_uid.items() 
@@ -121,7 +121,23 @@ class MultiViewDataGenerator:
         
         print(f"Training set: {len(train_uids)} objects")
         print(f"Testing set: {len(test_uids)} objects")
+        
+        # Expand each UID into individual training samples according to the number of versions.
+        self.train_samples = []
+        self.test_samples = []
+        for uid in self.train_uids:
+            obj_data = self.objects_by_uid[uid]
+            # Use the minimum number of versions among all views (to ensure every view has a corresponding image)
+            n_versions = min(len(v_list) for v_list in obj_data['views'])
+            for version in range(n_versions):
+                self.train_samples.append((uid, version))
     
+        for uid in self.test_uids:
+            obj_data = self.objects_by_uid[uid]
+            n_versions = min(len(v_list) for v_list in obj_data['views'])
+            for version in range(n_versions):
+                self.test_samples.append((uid, version))
+   
     def _load_and_preprocess_image(self, img_path, augment=False):
         """Load and preprocess an image."""
         img = load_img(img_path, target_size=(self.input_shape[0], self.input_shape[1]))
@@ -137,32 +153,32 @@ class MultiViewDataGenerator:
         img_array = preprocess_input(img_array)
         return img_array
     
-    def _data_generator(self, uids, augment=False):
-        """Create a generator that yields batches of multi-view data."""
-        num_samples = len(uids)
+    def _data_generator(self, samples, augment=False):
+        """Create a generator that yields batches of multi-view data.
+        samples is a list of (uid, version) tuples.
+        """
+        num_samples = len(samples)
         indices = list(range(num_samples))
         num_classes = len(self.category_to_idx)
         
         while True:
-            # Shuffle at the beginning of each epoch
             random.shuffle(indices)
             
             for start_idx in range(0, num_samples, self.batch_size):
                 batch_indices = indices[start_idx:start_idx + self.batch_size]
-                batch_uids = [uids[i] for i in batch_indices]
+                batch_samples = [samples[i] for i in batch_indices]
                 
-                # Initialize arrays for views and labels
-                batch_views = [np.zeros((len(batch_indices), *self.input_shape)) 
-                              for _ in range(self.num_views)]
-                batch_labels = np.zeros((len(batch_indices), num_classes))
+                # Initialize arrays for views and labels. (One sample = 5 views)
+                batch_views = [np.zeros((len(batch_samples), *self.input_shape)) 
+                            for _ in range(self.num_views)]
+                batch_labels = np.zeros((len(batch_samples), num_classes))
                 
-                # Fill the batch with data
-                for i, uid in enumerate(batch_uids):
+                for i, (uid, version) in enumerate(batch_samples):
                     obj_data = self.objects_by_uid[uid]
                     
-                    # Load all views of this object
+                    # For each view, load the image corresponding to the given version
                     for view_idx in range(self.num_views):
-                        img_path = obj_data['views'][view_idx]
+                        img_path = obj_data['views'][view_idx][version]
                         batch_views[view_idx][i] = self._load_and_preprocess_image(img_path, augment=augment)
                     
                     # One-hot encode the label
@@ -171,37 +187,33 @@ class MultiViewDataGenerator:
                 yield tuple(batch_views), batch_labels
     
     def get_train_dataset(self, augment=True):
-        """Get TensorFlow Dataset for training."""
-        # Create a TensorFlow Dataset from the generator
         output_signature = (
             tuple([tf.TensorSpec(shape=(None, *self.input_shape), dtype=tf.float32) 
-                  for _ in range(self.num_views)]),
+                for _ in range(self.num_views)]),
             tf.TensorSpec(shape=(None, len(self.category_to_idx)), dtype=tf.float32)
         )
         
         dataset = tf.data.Dataset.from_generator(
-            lambda: self._data_generator(self.train_uids, augment=augment),
+            lambda: self._data_generator(self.train_samples, augment=augment),
             output_signature=output_signature
         )
         
         return dataset.prefetch(tf.data.experimental.AUTOTUNE)
-    
+
     def get_test_dataset(self):
-        """Get TensorFlow Dataset for testing."""
-        # Create a TensorFlow Dataset from the generator
         output_signature = (
             tuple([tf.TensorSpec(shape=(None, *self.input_shape), dtype=tf.float32) 
-                  for _ in range(self.num_views)]),
+                for _ in range(self.num_views)]),
             tf.TensorSpec(shape=(None, len(self.category_to_idx)), dtype=tf.float32)
         )
         
         dataset = tf.data.Dataset.from_generator(
-            lambda: self._data_generator(self.test_uids, augment=False),
+            lambda: self._data_generator(self.test_samples, augment=False),
             output_signature=output_signature
         )
         
-        return dataset.prefetch(tf.data.experimental.AUTOTUNE)
-    
+        return dataset.prefetch(tf.data.experimental.AUTOTUNE)    
+
     def get_class_names(self):
         """Return a list of class names in index order."""
         return [cat for cat, idx in sorted(self.category_to_idx.items(), key=lambda x: x[1])]
