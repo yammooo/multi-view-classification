@@ -13,15 +13,34 @@ sys.path.append("/home/yammo/C:/Users/gianm/Development/multi-view-classificatio
 from model_evaluation import plot_training_history, evaluate_model, visualize_wrong_predictions
 from models.multi_view_model import build_multi_view_model
 
+# Import wandb and its Keras callbacks
+import wandb
+from wandb.integration.keras import WandbMetricsLogger, WandbModelCheckpoint
+
 # Set random seeds for reproducibility
 np.random.seed(42)
 tf.random.set_seed(42)
 
 def main():
+    # Initialize wandb
+    wandb.init(
+        project="multi-view-classification",
+        config={
+            "input_shape": (224, 224, 3),
+            "batch_size": 8,
+            "epochs": 2,
+            "optimizer": "adam",
+            "learning_rate": 1e-4,
+            "loss": "categorical_crossentropy",
+            "fusion_type": "fc"
+        }
+    )
+    config = wandb.config
+    
     # Data parameters
     data_dir = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset"
-    input_shape = (224, 224, 3)
-    batch_size = 8
+    input_shape = config.input_shape
+    batch_size = config.batch_size
     
     # Initialize data generator
     print("Initializing data generator...")
@@ -53,17 +72,17 @@ def main():
     model = build_multi_view_model(
         input_shape=input_shape,
         num_classes=num_classes,
-        fusion_type='fc'  # or 'max'
+        fusion_type=config.fusion_type  # or 'max'
     )
     
     # Compile model
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(1e-4),
-        loss='categorical_crossentropy',
+        optimizer=tf.keras.optimizers.Adam(config.learning_rate),
+        loss=config.loss,
         metrics=['accuracy']
     )
     
-    # Create callbacks
+    # Create callbacks including wandb callbacks
     callbacks = [
         tf.keras.callbacks.ModelCheckpoint(
             filepath=os.path.join(output_dir, 'model_best.keras'),
@@ -87,7 +106,9 @@ def main():
         ),
         tf.keras.callbacks.TensorBoard(
             log_dir=os.path.join(output_dir, 'logs')
-        )
+        ),
+        WandbMetricsLogger(log_freq=5),
+        WandbModelCheckpoint(os.path.join(output_dir, "wandb_model_best.keras"))
     ]
         
     # Compute steps per epoch based on the flattened sample lists (train_samples, test_samples)
@@ -103,13 +124,13 @@ def main():
     history = model.fit(
         train_ds,
         validation_data=test_ds,
-        epochs=1,
+        epochs=config.epochs,
         callbacks=callbacks,
         steps_per_epoch=steps_per_epoch,
         validation_steps=validation_steps
     )
     
-    # Save the final model
+    # Save the final model using the native Keras format
     model.save(os.path.join(output_dir, 'model_final.keras'))
     
     # Plot training history
@@ -118,7 +139,6 @@ def main():
     history_fig.savefig(os.path.join(output_dir, 'training_history.png'))
     plt.close(history_fig)
     
-
     # Evaluate model
     print("Evaluating model on test dataset...")
     report, cm_fig, y_true, y_pred = evaluate_model(model, test_ds, class_names, validation_steps)
@@ -129,7 +149,7 @@ def main():
     with open(os.path.join(output_dir, 'classification_report.txt'), 'w') as f:
         f.write(report)
     
-    # Visualize predictions
+    # Visualize predictions (only wrong predictions, if desired)
     print("Visualizing model predictions...")
     pred_wrong_fig = visualize_wrong_predictions(model, test_ds, class_names)
     if pred_wrong_fig:
@@ -137,6 +157,9 @@ def main():
         plt.close(pred_wrong_fig)
     
     print(f"All results saved to {output_dir}")
+    
+    # Finish wandb run
+    wandb.finish()
     
 if __name__ == "__main__":
     main()
