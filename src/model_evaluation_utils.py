@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
 import seaborn as sns
 import datetime
-from data_generator import MultiViewDataGenerator
+from data_generator import SimpleMultiViewDataGenerator
 import sys
 
 
@@ -77,48 +77,54 @@ def evaluate_model(model, test_dataset, class_names, validation_steps):
     
     return report, cm_fig, y_true, y_pred
 
-def visualize_wrong_predictions(model, test_dataset, class_names, num_samples=5):
-    """Visualize model predictions on only the wrongly predicted test samples."""
-    # Take a single batch from the test dataset
+def visualize_wrong_predictions(model, test_dataset, class_names, num_samples=5, visualize_original=False):
+    """Visualize model predictions on only wrongly predicted test samples.
+    
+    For each wrong sample, only the leftmost (first) view is annotated with the true vs. predicted label.
+    
+    Args:
+         model: Trained model.
+         test_dataset: A tf.data.Dataset yielding (views, labels).
+         class_names: List of class names.
+         num_samples: Maximum number of wrong samples to display.
+         visualize_original: If True, display the images as produced by the generator.
+    """
+    # Take one batch from the test dataset
     for views, labels in test_dataset.take(1):
-        # Get predictions
         preds = model.predict(views, verbose=0)
         pred_classes = np.argmax(preds, axis=1)
         true_classes = np.argmax(labels.numpy(), axis=1)
         
-        # Collect indexes of where predictions are wrong:
-        wrong_idxs = [i for i, (true, pred) in enumerate(zip(true_classes, pred_classes)) if true != pred]
-        
+        # Get indexes for wrong predictions.
+        wrong_idxs = [i for i, (t, p) in enumerate(zip(true_classes, pred_classes)) if t != p]
         if not wrong_idxs:
             print("No wrong predictions in this batch.")
             return None
         
-        # Limit the number of samples to display
         wrong_idxs = wrong_idxs[:num_samples]
-        
-        # Create a figure
+        num_views = len(views)
         fig = plt.figure(figsize=(20, 4 * len(wrong_idxs)))
         
-        for j, i in enumerate(wrong_idxs):
+        for row, i in enumerate(wrong_idxs):
             true_class = true_classes[i]
             pred_class = pred_classes[i]
-            
-            # Display all views for the wrong sample
-            for v in range(len(views)):
-                # Reverse preprocess_input for display
+            for v in range(num_views):
                 image = views[v][i].numpy()
-                image = image + np.array([103.939, 116.779, 123.68])  # BGR means for ResNet50
-                image = image[..., ::-1]  # BGR to RGB
+                if not visualize_original:
+                    # Reverse any preprocessing applied during training, e.g., for ResNet50.
+                    image = image + np.array([103.939, 116.779, 123.68])
+                    image = image[..., ::-1]  # Convert BGR to RGB if needed.
                 image = np.clip(image, 0, 255).astype('uint8')
                 
-                ax = fig.add_subplot(len(wrong_idxs), len(views), j * len(views) + v + 1)
+                ax = fig.add_subplot(len(wrong_idxs), num_views, row * num_views + v + 1)
                 ax.imshow(image)
-                
+                if row == 0:
+                    ax.set_title(f"View {v+1}", fontsize=12)
+                # On the leftmost view, add an annotation with the true and predicted labels.
                 if v == 0:
-                    ax.set_ylabel(f"Sample {i+1}\nTrue: {class_names[true_class]}\nPred: {class_names[pred_class]}", fontsize=10)
-                if j == 0:
-                    ax.set_title(f"View {v+1}")
+                    ax.text(5, 25, f"True: {class_names[true_class]}\nPred: {class_names[pred_class]}",
+                            fontsize=12, color='yellow', backgroundcolor='black', 
+                            verticalalignment='top', bbox=dict(facecolor='black', alpha=0.5))
                 ax.axis('off')
-        
         plt.tight_layout()
         return fig

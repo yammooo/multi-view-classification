@@ -5,13 +5,14 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix
 import seaborn as sns
 import datetime
-from data_generator import MultiViewDataGenerator
+from data_generator import SimpleMultiViewDataGenerator
 import sys
 
 # Add the project root directory to Python path
-sys.path.append("/home/yammo/C:/Users/gianm/Development/multi-view-classification")
-from model_evaluation import plot_training_history, evaluate_model, visualize_wrong_predictions
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from model_evaluation_utils import plot_training_history, evaluate_model, visualize_wrong_predictions
 from models.multi_view_model import build_multi_view_model
+from models.early_fusion.resnet50_early import build_5_view_resnet50_early
 
 # Import wandb and its Keras callbacks
 import wandb
@@ -24,34 +25,37 @@ tf.random.set_seed(42)
 def main():
     # Initialize wandb
     wandb.init(
-        project="multi-view-classification",
+        project="5-view-classification",
         config={
             "input_shape": (224, 224, 3),
             "batch_size": 8,
-            "epochs": 2,
+            "epochs": 1,
             "optimizer": "adam",
             "learning_rate": 1e-4,
+            "backbone_model": "resnet50",
             "loss": "categorical_crossentropy",
-            "fusion_type": "fc"
+            "fusion_type": "early",
+            "fusion_depth": "conv2_block3_out",
+            "fusion_method": "max",
         }
     )
     config = wandb.config
     
     # Data parameters
-    data_dir = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset"
+    data_dir = r"/home/yammo/C:/Users/gianm/Development/blender-dataset-gen/data/output"
     input_shape = config.input_shape
     batch_size = config.batch_size
     
     # Initialize data generator
     print("Initializing data generator...")
-    data_gen = MultiViewDataGenerator(
+    data_gen = SimpleMultiViewDataGenerator(
         data_dir=data_dir,
         input_shape=input_shape,
         batch_size=batch_size
     )
     
     # Get datasets
-    train_ds = data_gen.get_train_dataset(augment=True)
+    train_ds = data_gen.get_train_dataset()
     test_ds = data_gen.get_test_dataset()
     class_names = data_gen.get_class_names()
     num_classes = data_gen.get_num_classes()
@@ -63,16 +67,16 @@ def main():
     
     # Visualize some augmented data
     print("Visualizing training data...")
-    aug_fig = data_gen.visualize_batch(augmented=True)
+    aug_fig = data_gen.visualize_batch()
     aug_fig.savefig(os.path.join(output_dir, "augmented_samples.png"))
     plt.close(aug_fig)
     
     # Build model
     print("Building multi-view model...")
-    model = build_multi_view_model(
+    model = build_5_view_resnet50_early(
         input_shape=input_shape,
         num_classes=num_classes,
-        fusion_type=config.fusion_type  # or 'max'
+        fusion_type=config.fusion_method,
     )
     
     # Compile model
@@ -103,9 +107,6 @@ def main():
             patience=5,
             min_lr=1e-6,
             verbose=1
-        ),
-        tf.keras.callbacks.TensorBoard(
-            log_dir=os.path.join(output_dir, 'logs')
         ),
         WandbMetricsLogger(log_freq=5),
         WandbModelCheckpoint(os.path.join(output_dir, "wandb_model_best.keras"))
@@ -142,6 +143,13 @@ def main():
     # Evaluate model
     print("Evaluating model on test dataset...")
     report, cm_fig, y_true, y_pred = evaluate_model(model, test_ds, class_names, validation_steps)
+
+    # Log the classification report as text and confusion matrix image to wandb
+    wandb.log({
+        "classification_report": report,
+        "confusion_matrix": wandb.Image(cm_fig)
+    })
+
     cm_fig.savefig(os.path.join(output_dir, 'confusion_matrix.png'))
     plt.close(cm_fig)
     
@@ -149,7 +157,6 @@ def main():
     with open(os.path.join(output_dir, 'classification_report.txt'), 'w') as f:
         f.write(report)
     
-    # Visualize predictions (only wrong predictions, if desired)
     print("Visualizing model predictions...")
     pred_wrong_fig = visualize_wrong_predictions(model, test_ds, class_names)
     if pred_wrong_fig:
