@@ -9,10 +9,9 @@ from model_evaluation_utils import plot_training_history, evaluate_model, visual
 from models.early_fusion.resnet50_early import build_5_view_resnet50_early
 import math
 import keras
-keras.config.enable_unsafe_deserialization()
 
 # Load your already trained model (or build & load weights as needed)
-model = tf.keras.models.load_model(r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/results/run_20250312-084945/model_final.keras")
+model = tf.keras.models.load_model(r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/results/run_20250312-155148/model_best.keras")
 
 # Set your test dataset directory
 test_data_dir = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset/test"

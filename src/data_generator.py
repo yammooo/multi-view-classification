@@ -15,7 +15,7 @@ class SimpleMultiViewDataGenerator:
                  test_split=0.2,
                  random_state=42,
                  preprocess_fn=None,
-                 crop_to_square=False):   # New parameter
+                 crop_to_square=True):
         """
         Args:
             data_dir (str): Root directory with folders for each view.

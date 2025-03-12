@@ -1,3 +1,4 @@
+import wandb
 import os
 import numpy as np
 import tensorflow as tf
@@ -77,6 +78,44 @@ def evaluate_model(model, test_dataset, class_names, validation_steps):
     
     return report, cm_fig, y_true, y_pred
 
+def format_classification_report(report, class_names):
+    """
+    Given a classification report string and list of class names,
+    return a wandb.Table that can be logged. This version also includes 
+    summary metrics (accuracy, macro avg, weighted avg).
+    """
+    report_lines = report.splitlines()
+    table_data = []
+    columns = ["Class", "Precision", "Recall", "F1-score", "Support"]
+    
+    # Extract per-class rows (assumed to be after header in first two lines)
+    # (e.g. lines 3 to 3+len(class_names)-1)
+    start = 2
+    for line in report_lines[start:start + len(class_names)]:
+        parts = line.split()
+        if len(parts) < 5:
+            # In case the class name contains spaces
+            class_name = " ".join(parts[:-4])
+            parts = [class_name] + parts[-4:]
+        table_data.append(parts)
+    
+    # Now, go through the remaining lines to get summary rows
+    for line in report_lines[start + len(class_names):]:
+        if not line.strip():
+            continue
+        # The accuracy line often only contains 3 pieces: "accuracy", value and support.
+        if line.strip().startswith("accuracy"):
+            parts = line.split()
+            # Format accuracy row as: ["accuracy", "", "", accuracy_value, support]
+            if len(parts) == 3:
+                table_data.append(["accuracy", "", "", parts[1], parts[2]])
+            else:
+                table_data.append(parts)
+        elif line.strip().startswith("macro avg") or line.strip().startswith("weighted avg"):
+            parts = line.split()
+            table_data.append(parts)
+    
+    return wandb.Table(data=table_data, columns=columns)
 def visualize_wrong_predictions(model, test_dataset, class_names, num_samples=5, visualize_original=False):
     """Visualize model predictions on only wrongly predicted test samples.
     

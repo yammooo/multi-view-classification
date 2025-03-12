@@ -2,15 +2,13 @@ import os
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from sklearn.metrics import classification_report, confusion_matrix
-import seaborn as sns
 import datetime
 from data_generator import SimpleMultiViewDataGenerator
 import sys
 
 # Add the project root directory to Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from model_evaluation_utils import plot_training_history, evaluate_model, visualize_wrong_predictions
+from model_evaluation_utils import *
 from models.multi_view_model import build_multi_view_model
 from models.early_fusion.resnet50_early import build_5_view_resnet50_early
 
@@ -27,6 +25,7 @@ def main():
     wandb.init(
         project="5-view-classification",
         config={
+            "dataset_artifact": "synt_5_obj_dataset:v0",
             "input_shape": (224, 224, 3),
             "batch_size": 8,
             "epochs": 1,
@@ -42,7 +41,7 @@ def main():
     config = wandb.config
     
     # Data parameters
-    data_dir = r"/home/yammo/C:/Users/gianm/Development/blender-dataset-gen/data/output"
+    data_dir = r"/home/yammo/C:/Users/gianm/Development/blender-dataset-gen/data/synt_5_obj_dataset_v0"
     input_shape = config.input_shape
     batch_size = config.batch_size
     
@@ -120,7 +119,13 @@ def main():
     validation_steps = len(data_gen.test_samples) // batch_size
     if len(data_gen.test_samples) % batch_size != 0:
         validation_steps += 1
-    
+
+    # Update wandb config with computed steps
+    wandb.config.update({
+        "steps_per_epoch": steps_per_epoch,
+        "validation_steps": validation_steps
+    })
+
     # Then pass these to model.fit so the epoch stops once the dataset is exhausted:
     history = model.fit(
         train_ds,
@@ -133,38 +138,19 @@ def main():
     
     # Save the final model using the native Keras format
     model.save(os.path.join(output_dir, 'model_final.keras'))
-    
-    # Plot training history
-    print("Plotting training history...")
-    history_fig = plot_training_history(history)
-    history_fig.savefig(os.path.join(output_dir, 'training_history.png'))
-    plt.close(history_fig)
-    
+        
     # Evaluate model
     print("Evaluating model on test dataset...")
     report, cm_fig, y_true, y_pred = evaluate_model(model, test_ds, class_names, validation_steps)
+    pred_wrong_fig = visualize_wrong_predictions(model, test_ds, class_names)
 
     # Log the classification report as text and confusion matrix image to wandb
     wandb.log({
-        "classification_report": report,
+        "classification_report": format_classification_report(report, class_names),
+        "pred_wrong": wandb.Image(pred_wrong_fig) if pred_wrong_fig is not None else None,
         "confusion_matrix": wandb.Image(cm_fig)
     })
-
-    cm_fig.savefig(os.path.join(output_dir, 'confusion_matrix.png'))
-    plt.close(cm_fig)
-    
-    # Save classification report
-    with open(os.path.join(output_dir, 'classification_report.txt'), 'w') as f:
-        f.write(report)
-    
-    print("Visualizing model predictions...")
-    pred_wrong_fig = visualize_wrong_predictions(model, test_ds, class_names)
-    if pred_wrong_fig:
-        pred_wrong_fig.savefig(os.path.join(output_dir, 'wrong_predictions.png'))
-        plt.close(pred_wrong_fig)
-    
-    print(f"All results saved to {output_dir}")
-    
+        
     # Finish wandb run
     wandb.finish()
     
