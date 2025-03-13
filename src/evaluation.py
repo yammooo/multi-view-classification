@@ -56,7 +56,7 @@ def evaluate_and_log_model(model, output_dir, test_dataset_label, test_ds=None, 
 
     # Evaluate the model.
     report, cm_fig, y_true, y_pred = evaluate_model(model, test_ds, class_names, validation_steps)
-    pred_wrong_fig = plot_wrong_predictions(model, test_ds, class_names)
+    pred_wrong_fig = plot_predictions(model, test_ds, class_names)
     
     # Log unique keys using the test_dataset_label.
     wandb.log({
@@ -146,18 +146,19 @@ def format_classification_report(report, class_names):
     
     return wandb.Table(data=table_data, columns=columns)
 
-def plot_wrong_predictions(model, test_dataset, class_names, num_samples=5, visualize_original=True):
+def plot_predictions(model, test_dataset, class_names, num_samples=5, visualize_original=True):
     """
-    Generate a figure that visualizes wrong predictions from the test dataset.
+    Generate a figure that visualizes predictions from the test dataset.
     
-    For each wrong sample, only the leftmost (first) view is annotated with the true vs. predicted label.
-    If no wrong predictions exist, the figure will display a message indicating so.
+    For a few samples (up to num_samples), this function displays the first view 
+    of each sample along with the true and predicted labels. Correct predictions 
+    are annotated in green, while wrong ones are annotated in red.
     
     Args:
          model: Trained model.
          test_dataset: A tf.data.Dataset yielding (views, labels).
          class_names: List of class names.
-         num_samples: Maximum number of wrong samples to display.
+         num_samples: Maximum number of samples to display.
          visualize_original: If True, displays images as produced by the generator.
          
     Returns:
@@ -169,43 +170,31 @@ def plot_wrong_predictions(model, test_dataset, class_names, num_samples=5, visu
         pred_classes = np.argmax(preds, axis=1)
         true_classes = np.argmax(labels.numpy(), axis=1)
         
-        # Get indexes for wrong predictions.
-        wrong_idxs = [i for i, (t, p) in enumerate(zip(true_classes, pred_classes)) if t != p]
+        # Limit display to a fixed number of samples.
+        num_samples = min(num_samples, len(true_classes))
+        fig = plt.figure(figsize=(20, 4 * num_samples))
         
-        # If there are no wrong predictions, create a figure with a message.
-        if not wrong_idxs:
-            fig = plt.figure(figsize=(10, 4))
-            ax = fig.add_subplot(1, 1, 1)
-            ax.text(0.5, 0.5, "No wrong predictions in this batch.", 
-                    ha="center", va="center", fontsize=14)
-            ax.axis("off")
-            return fig
-        
-        # Limit number of wrong predictions to num_samples.
-        wrong_idxs = wrong_idxs[:num_samples]
-        num_views = len(views)
-        fig = plt.figure(figsize=(20, 4 * len(wrong_idxs)))
-        
-        for row, i in enumerate(wrong_idxs):
+        # We'll show only the first view of each sample for overview.
+        for i in range(num_samples):
+            image = views[0][i].numpy()
+            if not visualize_original:
+                # Reverse any preprocessing (e.g., for ResNet50).
+                image = image + np.array([103.939, 116.779, 123.68])
+                image = image[..., ::-1]  # Convert BGR to RGB if needed.
+            image = np.clip(image, 0, 255).astype('uint8')
+            
+            ax = fig.add_subplot(num_samples, 1, i + 1)
+            ax.imshow(image)
             true_class = true_classes[i]
             pred_class = pred_classes[i]
-            for v in range(num_views):
-                image = views[v][i].numpy()
-                if not visualize_original:
-                    # Reverse any preprocessing, e.g., for ResNet50.
-                    image = image + np.array([103.939, 116.779, 123.68])
-                    image = image[..., ::-1]  # Convert BGR to RGB if needed.
-                image = np.clip(image, 0, 255).astype('uint8')
-                
-                ax = fig.add_subplot(len(wrong_idxs), num_views, row * num_views + v + 1)
-                ax.imshow(image)
-                if row == 0:
-                    ax.set_title(f"View {v+1}", fontsize=12)
-                # On the leftmost view, add annotation with true and predicted labels.
-                if v == 0:
-                    ax.text(5, 25, f"True: {class_names[true_class]}\nPred: {class_names[pred_class]}",
-                            fontsize=12, color='yellow', backgroundcolor='black',
-                            verticalalignment='top', bbox=dict(facecolor='black', alpha=0.5))
-                ax.axis('off')
+            # Use green if correct, red if wrong.
+            annotation_color = "green" if true_class == pred_class else "red"
+            ax.text(
+                5, 25, 
+                f"True: {class_names[true_class]}, Pred: {class_names[pred_class]}",
+                fontsize=12, color=annotation_color, backgroundcolor="black",
+                verticalalignment="top", bbox=dict(facecolor="black", alpha=0.5)
+            )
+            ax.axis("off")
         plt.tight_layout()
         return fig

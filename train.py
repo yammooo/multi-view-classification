@@ -24,7 +24,7 @@ def main():
     wandb.init(
         project="5-view-classification",
         config={
-            "dataset_artifact": "synt_5_obj_dataset:v0",
+            "dataset_artifact": "synt_6_obj_dataset_confusion_red:v0",
             "input_shape": (224, 224, 3),
             "batch_size": 8,
             "epochs": 1,
@@ -39,7 +39,7 @@ def main():
     )
     config = wandb.config
     
-    data_dir = r"/home/yammo/C:/Users/gianm/Development/blender-dataset-gen/data/output"
+    data_dir = r"/home/yammo/C:/Users/gianm/Development/blender-dataset-gen/data/synt_6_obj_dataset_confusion_red"
     input_shape = config.input_shape
     batch_size = config.batch_size
 
@@ -62,11 +62,8 @@ def main():
     output_dir = f"results/run_{timestamp}"
     os.makedirs(output_dir, exist_ok=True)
     
-    print("Visualizing training data...")
-    aug_fig = data_gen.visualize_batch()
-    aug_fig.savefig(os.path.join(output_dir, "augmented_samples.png"))
-    plt.close(aug_fig)
-
+    training_batch_fig = data_gen.visualize_batch()
+    wandb.log({"training_batch_fig": wandb.Image(training_batch_fig)})
 
     # ------------------- Building Model -------------------
 
@@ -128,8 +125,8 @@ def main():
         validation_data=test_ds,
         epochs=config.epochs,
         callbacks=callbacks,
-        steps_per_epoch=10,
-        validation_steps=10
+        steps_per_epoch=steps_per_epoch,
+        validation_steps=validation_steps
     )
 
     model.save(os.path.join(output_dir, 'model_final.keras'))
