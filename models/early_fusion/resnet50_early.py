@@ -18,7 +18,7 @@ class StackReduceLayer(Layer):
 
 def split_resnet50(insertion_layer_name, next_start_layer_name, input_shape=(512, 512, 3)):
     full_model = ResNet50(weights="imagenet", include_top=False, input_shape=input_shape)
-    full_model.trainable = True
+    full_model.trainable = False
 
     part1 = Model(
         inputs=full_model.input,

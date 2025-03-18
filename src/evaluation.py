@@ -65,18 +65,33 @@ def evaluate_and_log_model(model, output_dir, test_dataset_label, test_ds=None, 
         f"{test_dataset_label}/wrong_predictions": wandb.Image(pred_wrong_fig),
     })
 
-def plot_confusion_matrix(y_true, y_pred, class_names):
-    """Plot confusion matrix."""
-    cm = confusion_matrix(y_true, y_pred)
-    plt.figure(figsize=(10, 8))
+def plot_confusion_matrix_from_cm(cm, class_names):
+    """
+    Plot a confusion matrix using seaborn with modifications
+    to improve readability for a large number of classes.
+    
+    Args:
+         y_true: True class indices.
+         y_pred: Predicted class indices.
+         class_names: List of class names.
+         
+    Returns:
+         matplotlib.figure.Figure: The figure containing the confusion matrix.
+    """
+    fig, ax = plt.subplots(figsize=(20, 20))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
                 xticklabels=class_names, 
-                yticklabels=class_names)
-    plt.xlabel('Predicted')
-    plt.ylabel('True')
-    plt.title('Confusion Matrix')
+                yticklabels=class_names,
+                ax=ax,
+                annot_kws={"fontsize": 6})  # Smaller annotation font size
+
+    ax.set_xlabel('Predicted', fontsize=12)
+    ax.set_ylabel('True', fontsize=12)
+    ax.set_title('Confusion Matrix', fontsize=14)
+    plt.xticks(rotation=90, fontsize=6)
+    plt.yticks(fontsize=6)
     plt.tight_layout()
-    return plt.gcf()
+    return fig
 
 def evaluate_model(model, test_dataset, class_names, validation_steps):
     """Evaluate model on the test dataset."""
@@ -96,13 +111,17 @@ def evaluate_model(model, test_dataset, class_names, validation_steps):
         y_true.extend(batch_true_classes)
         y_pred.extend(batch_pred_classes)
     
+    # Specify the full list of class labels:
+    all_labels = list(range(len(class_names)))
+
     # Generate classification report
-    report = classification_report(y_true, y_pred, target_names=class_names)
+    report = classification_report(y_true, y_pred, target_names=class_names, labels=all_labels, zero_division=0)
     print("Classification Report:")
     print(report)
     
     # Plot confusion matrix
-    cm_fig = plot_confusion_matrix(y_true, y_pred, class_names)
+    cm = confusion_matrix(y_true, y_pred, labels=all_labels)
+    cm_fig = plot_confusion_matrix_from_cm(cm, class_names)
     
     return report, cm_fig, y_true, y_pred
 
@@ -150,9 +169,9 @@ def plot_predictions(model, test_dataset, class_names, num_samples=5, visualize_
     """
     Generate a figure that visualizes predictions from the test dataset.
     
-    For a few samples (up to num_samples), this function displays the first view 
-    of each sample along with the true and predicted labels. Correct predictions 
-    are annotated in green, while wrong ones are annotated in red.
+    For a few samples (up to num_samples), this function displays all views for each sample 
+    along with the true and predicted labels on the first view.
+    Correct predictions are annotated in green, while wrong ones are annotated in red.
     
     Args:
          model: Trained model.
@@ -169,32 +188,34 @@ def plot_predictions(model, test_dataset, class_names, num_samples=5, visualize_
         preds = model.predict(views, verbose=0)
         pred_classes = np.argmax(preds, axis=1)
         true_classes = np.argmax(labels.numpy(), axis=1)
-        
-        # Limit display to a fixed number of samples.
+
         num_samples = min(num_samples, len(true_classes))
-        fig = plt.figure(figsize=(20, 4 * num_samples))
-        
-        # We'll show only the first view of each sample for overview.
+        num_views = len(views)
+        fig = plt.figure(figsize=(5 * num_views, 4 * num_samples))
+
+        # Loop over samples and views.
         for i in range(num_samples):
-            image = views[0][i].numpy()
-            if not visualize_original:
-                # Reverse any preprocessing (e.g., for ResNet50).
-                image = image + np.array([103.939, 116.779, 123.68])
-                image = image[..., ::-1]  # Convert BGR to RGB if needed.
-            image = np.clip(image, 0, 255).astype('uint8')
-            
-            ax = fig.add_subplot(num_samples, 1, i + 1)
-            ax.imshow(image)
-            true_class = true_classes[i]
-            pred_class = pred_classes[i]
-            # Use green if correct, red if wrong.
-            annotation_color = "green" if true_class == pred_class else "red"
-            ax.text(
-                5, 25, 
-                f"True: {class_names[true_class]}, Pred: {class_names[pred_class]}",
-                fontsize=12, color=annotation_color, backgroundcolor="black",
-                verticalalignment="top", bbox=dict(facecolor="black", alpha=0.5)
-            )
-            ax.axis("off")
+            for v in range(num_views):
+                image = views[v][i].numpy()
+                # if not visualize_original:
+                #     # Reverse any preprocessing (e.g., for ResNet50).
+                #     image = image + np.array([103.939, 116.779, 123.68])
+                #     image = image[..., ::-1]  # Convert BGR to RGB if needed.
+                image = np.clip(image, 0, 255).astype('uint8')
+
+                ax = fig.add_subplot(num_samples, num_views, i * num_views + v + 1)
+                ax.imshow(image)
+                # Annotate on the first view only.
+                if v == 0:
+                    true_class = true_classes[i]
+                    pred_class = pred_classes[i]
+                    annotation_color = "green" if true_class == pred_class else "red"
+                    ax.text(
+                        5, 25,
+                        f"True: {class_names[true_class]}, Pred: {class_names[pred_class]}",
+                        fontsize=12, color=annotation_color, backgroundcolor="black",
+                        verticalalignment="top", bbox=dict(facecolor="black", alpha=0.5)
+                    )
+                ax.axis("off")
         plt.tight_layout()
         return fig

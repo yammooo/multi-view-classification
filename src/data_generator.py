@@ -185,7 +185,7 @@ class SimpleMultiViewDataGenerator:
 
 if __name__ == "__main__":
     # Example usage
-    data_dir = r"/home/yammo/C:/Users/gianm/Development/blender-dataset-gen/data/output"
+    data_dir = r"/home/yammo/C:/Users/gianm/Development/blender-dataset-gen/data/synt+real_75+5_dataset_v0"
     views = ["back_left", "back_right", "front_left", "front_right", "top"]
     print("Creating data generator...")
     data_gen = SimpleMultiViewDataGenerator(

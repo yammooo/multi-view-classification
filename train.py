@@ -24,10 +24,10 @@ def main():
     wandb.init(
         project="5-view-classification",
         config={
-            "dataset_artifact": "synt_6_obj_dataset_confusion_red:v0",
+            "dataset_artifact": "synt+real_75+5_dataset:v0",
             "input_shape": (224, 224, 3),
             "batch_size": 8,
-            "epochs": 1,
+            "epochs": 7,
             "optimizer": "adam",
             "learning_rate": 1e-4,
             "backbone_model": "resnet50",
@@ -39,7 +39,7 @@ def main():
     )
     config = wandb.config
     
-    data_dir = r"/home/yammo/C:/Users/gianm/Development/blender-dataset-gen/data/synt_6_obj_dataset_confusion_red"
+    data_dir = r"/home/yammo/C:/Users/gianm/Development/blender-dataset-gen/data/synt+real_75+5_dataset_v0"
     input_shape = config.input_shape
     batch_size = config.batch_size
 
@@ -92,28 +92,26 @@ def main():
     # ------------------- Callbacks -------------------
 
     callbacks = [
-            tf.keras.callbacks.ModelCheckpoint(
-                filepath=os.path.join(output_dir, 'model_best.keras'),
-                monitor='val_accuracy',
+            WandbMetricsLogger(log_freq=5),
+            WandbModelCheckpoint(
+                filepath= os.path.join(output_dir, "model_best.keras"),
                 save_best_only=True,
                 save_weights_only=False,
                 verbose=1
             ),
             tf.keras.callbacks.EarlyStopping(
                 monitor='val_accuracy',
-                patience=10,
+                patience=3,
                 restore_best_weights=True,
                 verbose=1
             ),
             tf.keras.callbacks.ReduceLROnPlateau(
                 monitor='val_loss',
                 factor=0.5,
-                patience=5,
+                patience=2,
                 min_lr=1e-6,
                 verbose=1
             ),
-            WandbMetricsLogger(log_freq=5),
-            WandbModelCheckpoint(os.path.join(output_dir, "wandb_model_best.keras"))
         ]
 
     # ------------------- Training and Evaluation on Base Dataset -------------------
@@ -136,9 +134,9 @@ def main():
 
     # ------------------- Evaluation on Real Dataset -------------------
 
-    real_data_dir = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset/test"
+    real_data_dir = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset/test_v1"
     
-    evaluate_and_log_model(model, output_dir, "real_obj_dataset:v0", None, real_data_dir, config, None, None)
+    evaluate_and_log_model(model, output_dir, "real_obj_dataset:v0", None, real_data_dir, config, class_names, None)
 
     # ------------------- Finish -------------------
     
