@@ -1,16 +1,15 @@
 import tensorflow as tf
+import keras
 from keras.applications import ResNet50
 from keras.models import Model
-from keras.layers import Input, Concatenate, Conv2D, Layer
-import keras
+from keras.layers import Input, Concatenate, Conv2D, Layer, BatchNormalization
 
 class StackReduceLayer(Layer):
     def __init__(self, **kwargs):
         super(StackReduceLayer, self).__init__(**kwargs)
     def call(self, inputs):
-        # Stack object: expects a list of tensors.
+        # Expects a list of tensors, stacks and reduces along the new axis.
         stacked = tf.stack(inputs, axis=1)
-        # Reduce along the new axis (e.g., take maximum).
         return tf.reduce_max(stacked, axis=1)
     def get_config(self):
         base_config = super(StackReduceLayer, self).get_config()
@@ -18,7 +17,7 @@ class StackReduceLayer(Layer):
 
 def split_resnet50(insertion_layer_name, next_start_layer_name, input_shape=(512, 512, 3)):
     full_model = ResNet50(weights="imagenet", include_top=False, input_shape=input_shape)
-    full_model.trainable = False
+    full_model.trainable = True
 
     part1 = Model(
         inputs=full_model.input,
@@ -28,13 +27,19 @@ def split_resnet50(insertion_layer_name, next_start_layer_name, input_shape=(512
         inputs=full_model.get_layer(next_start_layer_name).input,
         outputs=full_model.output
     )
+    # Tag layers in part1 and part2 as backbone.
+    for layer in part1.layers:
+        layer._group = "backbone"
+    for layer in part2.layers:
+        layer._group = "backbone"
+
     return part1, part2
 
 def build_5_view_resnet50_early(input_shape=(224, 224, 3),
                                 insertion_layer="conv2_block3_out",
                                 next_start_layer="conv3_block1_1_conv",
                                 num_classes=5,
-                                fusion_type="max"):
+                                fusion_method="max"):
     part1, part2 = split_resnet50(insertion_layer, next_start_layer, input_shape=input_shape)
     
     input_views = []
@@ -47,25 +52,44 @@ def build_5_view_resnet50_early(input_shape=(224, 224, 3),
         branch_outputs.append(branch_out)
         print(f"Branch {i+1} output shape: {branch_out.shape}")
     
-    if fusion_type == "max":
-        fused = StackReduceLayer(name="stack_reduce_layer")(branch_outputs)
-    elif fusion_type == "conv":
-        fused_concat = Concatenate(axis=-1)(branch_outputs)
+    if fusion_method == "max":
+        # Create and tag the fusion layer instance.
+        fusion_layer = StackReduceLayer(name="stack_reduce_layer")
+        fusion_layer._group = "fusion"
+        fused = fusion_layer(branch_outputs)
+    elif fusion_method == "conv":
+        fused_concat = Concatenate(axis=-1, name="fused_concat")(branch_outputs)
         filters = branch_outputs[0].shape[-1]
-        fused = Conv2D(filters=filters,
-                       kernel_size=1,
-                       activation='relu',
-                       name='fused_adapter')(fused_concat)
+        conv_layer = Conv2D(filters=filters,
+                            kernel_size=1,
+                            activation='relu',
+                            name='fused_adapter')
+        conv_layer._group = "fusion"
+        fused = conv_layer(fused_concat)
     else:
-        raise ValueError("fusion_type must be either 'max' or 'conv'")
+        raise ValueError("fusion_method must be either 'max' or 'conv'")
     
     print("Shape after fusion:", fused.shape)
     
     x = part2(fused)
-    x = tf.keras.layers.GlobalAveragePooling2D()(x)
-    x = tf.keras.layers.Dense(1024, activation='relu', name='fc_1024')(x)
-    x = keras.layers.Dropout(0.5)(x)
-    output = tf.keras.layers.Dense(num_classes, activation='softmax')(x)
+    x = tf.keras.layers.GlobalAveragePooling2D(name="global_avg_pool")(x)
+    
+    fc_layer = tf.keras.layers.Dense(1024, activation='relu', name='fc_1024')
+    fc_layer._group = "classifier"
+    x = fc_layer(x)
+    
+    # Added BatchNormalization after the dense layer.
+    bn_layer = BatchNormalization(name="bn_fc")
+    bn_layer._group = "classifier"
+    x = bn_layer(x)
+    
+    dropout_layer = keras.layers.Dropout(0.5, name="dropout")
+    dropout_layer._group = "classifier"
+    x = dropout_layer(x)
+    
+    pred_layer = tf.keras.layers.Dense(num_classes, activation='softmax', name="prediction")
+    pred_layer._group = "classifier"
+    output = pred_layer(x)
     
     multi_view_model = Model(inputs=input_views, outputs=output)
     return multi_view_model
@@ -75,5 +99,5 @@ if __name__ == "__main__":
         insertion_layer="conv2_block3_out",
         next_start_layer="conv3_block1_1_conv",
         num_classes=5,
-        fusion_type="max")
+        fusion_method="max")
     model.summary()

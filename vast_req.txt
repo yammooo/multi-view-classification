@@ -1,0 +1,5 @@
+tensorflow_addons
+wandb
+matplotlib
+numpy
+seaborn

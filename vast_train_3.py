@@ -27,7 +27,7 @@ def main():
         config={
             "dataset_artifact": "synt+real_75+5_dataset:v0",
             "input_shape": (224, 224, 3),
-            "batch_size": 8,
+            "batch_size": 16,
             "epochs": 10,
             "optimizer": "adam",
             "backbone_model": "resnet50",
@@ -37,7 +37,7 @@ def main():
             "fusion_depth": "conv2_block3_out",
             "next_start_layer": "conv3_block1_1_conv",
             "fusion_method": "max",
-            "freeze_config": {"freeze_blocks": ["conv1", "conv2", "conv3"]},
+            "freeze_config": {"freeze_blocks": []},
 
             "learning_rate": 1e-4,
             "differential_lr": False,
@@ -51,7 +51,7 @@ def main():
     config = wandb.config
     
     base_dir = os.path.dirname(os.path.join(__file__, ".."))
-    data_dir = r"/home/yammo/C:/Users/gianm/Development/blender-dataset-gen/data/synt+real_75+5_dataset_v0"
+    ds_dir = os.path.join(base_dir, "artifacts", config.dataset_artifact)
     input_shape = config.input_shape
     batch_size = config.batch_size
 
@@ -60,7 +60,7 @@ def main():
     
     print("Initializing data generator...")
     data_gen = SimpleMultiViewDataGenerator(
-        data_dir=data_dir,
+        data_dir=ds_dir,
         input_shape=input_shape,
         batch_size=batch_size
     )

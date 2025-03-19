@@ -57,8 +57,8 @@ def create_dataset_from_photos(input_dir, output_dir, category):
 
 if __name__ == "__main__":
 
-    input_dir = r"/home/yammo/C:/Users/gianm/Downloads/photos_charging_brick"
-    output_dir = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset/test_charging_brick_as_real_1"
+    input_dir = r"/home/yammo/Downloads/other_objects_interference"
+    output_dir = r"/home/yammo/Development/multi-view-classification/dataset/test_other_objects_interference"
     category = "real_1"
     
     create_dataset_from_photos(input_dir, output_dir, category)
