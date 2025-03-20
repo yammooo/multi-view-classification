@@ -149,15 +149,15 @@ def main():
     evaluate_and_log_model(model, output_dir, config.dataset_artifact, test_ds, None, config, class_names, validation_steps)
 
     # ------------------- Evaluation on Real Datasets -------------------
-    test_edges_label =                      "test_edges:latest"
-    test_good_condition_label =             "test_good_conditions:latest"
-    test_other_objects_interference_label = "test_other_objects_interference:latest"
-    test_partial_occlusion_label =          "test_partial_occlusion:latest"
+    test_edges_label =                      "test_edges:v0"
+    test_good_condition_label =             "test_good_conditions:v0"
+    test_other_objects_interference_label = "test_other_objects_interference:v0"
+    test_partial_occlusion_label =          "test_partial_occlusion:v0"
 
-    test_edges_dir =                        os.path.join(base_dir, "artifacts", "test_edges:latest")
-    test_good_condition_dir =               os.path.join(base_dir, "artifacts", "test_good_conditions:latest")
-    test_other_objects_interference_dir =   os.path.join(base_dir, "artifacts", "test_other_objects_interference:latest")
-    test_partial_occlusion_dir =            os.path.join(base_dir, "artifacts", "test_partial_occlusion:latest")
+    test_edges_dir =                        os.path.join(base_dir, "artifacts", test_edges_label)
+    test_good_condition_dir =               os.path.join(base_dir, "artifacts", test_good_condition_label)
+    test_other_objects_interference_dir =   os.path.join(base_dir, "artifacts", test_other_objects_interference_label)
+    test_partial_occlusion_dir =            os.path.join(base_dir, "artifacts", test_partial_occlusion_label)
     
     evaluate_and_log_model(model, output_dir, test_edges_label, None, test_edges_dir, config, class_names, None)
     evaluate_and_log_model(model, output_dir, test_good_condition_label, None, test_good_condition_dir, config, class_names, None)
