@@ -8,7 +8,6 @@ class StackReduceLayer(Layer):
     def __init__(self, **kwargs):
         super(StackReduceLayer, self).__init__(**kwargs)
     def call(self, inputs):
-        # Expects a list of tensors, stacks and reduces along the new axis.
         stacked = tf.stack(inputs, axis=1)
         return tf.reduce_max(stacked, axis=1)
     def get_config(self):

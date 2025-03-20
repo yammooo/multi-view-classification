@@ -51,7 +51,7 @@ def main():
     config = wandb.config
     
     base_dir = os.path.dirname(os.path.join(__file__, ".."))
-    ds_dir = os.path.join(base_dir, "artifacts", config.dataset_artifact)
+    ds_dir = os.path.join(base_dir, "synt+real_75+5_dataset_v0")
     input_shape = config.input_shape
     batch_size = config.batch_size
 

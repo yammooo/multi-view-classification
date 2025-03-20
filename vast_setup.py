@@ -3,7 +3,7 @@ wandb.login()
 
 datasets = []
 
-datasets.append("synt_real_75_5_dataset:v0")
+# datasets.append("synt_real_75_5_dataset:v0")
 datasets.append("test_edges:latest")
 datasets.append("test_good_conditions:latest")
 datasets.append("test_other_objects_interference:latest")
