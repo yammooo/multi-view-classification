@@ -13,8 +13,6 @@ import wandb
 from wandb.integration.keras import WandbMetricsLogger, WandbModelCheckpoint
 
 from model_factory import build_model
-from model_helpers import get_multi_optimizer
-
 np.random.seed(42)
 tf.random.set_seed(42)
 
@@ -41,11 +39,6 @@ def main():
 
             "learning_rate": 1e-4,
             "differential_lr": False,
-            "optimizer_config": {
-                "backbone": {"conv1": 0.1, "conv2": 0.2, "conv3": 0.3, "conv4": 0.4, "conv5": 0.5},
-                "fusion": 1.0,
-                "classifier": 1.0
-            }
         }
     )
     config = wandb.config
@@ -85,10 +78,7 @@ def main():
     model = build_model(config)
     
     # Optimizer
-    if config.differential_lr:
-        optimizer = get_multi_optimizer(model, config.learning_rate, config.optimizer_config)
-    else:
-        optimizer = tf.keras.optimizers.Adam(config.learning_rate)
+    optimizer = tf.keras.optimizers.Adam(config.learning_rate)
     
     # Compile model
     model.compile(
