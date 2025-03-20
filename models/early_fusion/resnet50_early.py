@@ -94,9 +94,38 @@ def build_5_view_resnet50_early(input_shape=(224, 224, 3),
     return multi_view_model
 
 if __name__ == "__main__":
+    import os
+    import sys
+
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+
+    from model_helpers import apply_freeze_config
+
+    # Build the model
     model = build_5_view_resnet50_early(
         insertion_layer="conv2_block3_out",
         next_start_layer="conv3_block1_1_conv",
         num_classes=5,
-        fusion_method="max")
+        fusion_method="max"
+    )
     model.summary()
+    
+    # Function to print each layer's trainable status recursively.
+    def print_trainable_status(model_instance, prefix=""):
+        for layer in model_instance.layers:
+            if isinstance(layer, tf.keras.Model):
+                print_trainable_status(layer, prefix=prefix + "  ")
+            else:
+                print(f"{prefix}{layer.name}: trainable={layer.trainable}")
+    
+    print("\nBefore applying freeze config:")
+    print_trainable_status(model)
+    
+    # Import and apply a freeze configuration from model_helpers.
+    # For example, freezing any layer whose name contains "conv1", "conv2", etc.
+    from model_helpers import apply_freeze_config
+    freeze_config = {"freeze_blocks": ["conv1", "conv2", "conv3", "conv4", "conv5"]}
+    apply_freeze_config(model, freeze_config)
+    
+    print("\nAfter applying freeze config:")
+    print_trainable_status(model)
