@@ -23,6 +23,7 @@ def main():
 
     wandb.init(
         project="5-view-classification",
+        job_type="train",
         config={
             "dataset_artifact": "synt+real_75+5_dataset:v0",
             "input_shape": (224, 224, 3),
