@@ -12,7 +12,7 @@ def build_model(config):
       - freeze_config: dictionary that defines how to freeze blocks
     """
     fusion_strategy = config.get("fusion_strategy")
-    backbone = config.get("backbone")
+    backbone = config.get("backbone_model")
     fusion_method = config.get("fusion_method")
     input_shape = config.get("input_shape")
     num_classes = config.get("num_classes")
