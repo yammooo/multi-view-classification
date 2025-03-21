@@ -52,7 +52,6 @@ def build_5_view_resnet50_early(input_shape=(224, 224, 3),
         print(f"Branch {i+1} output shape: {branch_out.shape}")
     
     if fusion_method == "max":
-        # Create and tag the fusion layer instance.
         fusion_layer = StackReduceLayer(name="stack_reduce_layer")
         fusion_layer._group = "fusion"
         fused = fusion_layer(branch_outputs)
@@ -94,6 +93,7 @@ def build_5_view_resnet50_early(input_shape=(224, 224, 3),
     return multi_view_model
 
 if __name__ == "__main__":
+
     import os
     import sys
 

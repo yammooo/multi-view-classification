@@ -2,10 +2,10 @@ import json
 import wandb
 import os
 
-DATASET_DIR = r"/home/yammo/Downloads/synt+real_75+5_dataset_v0.rar"
+DATASET_DIR = r"/home/yammo/Development/multi-view-classification/dataset/test_charging_brick"
 
 # synt_5_obj_dataset, real_obj_dataset
-DATASET_NAME = "synt_real_75_5_dataset"
+DATASET_NAME = "test_charging_brick"
 
 # Read render parameters from JSON file
 if os.path.exists(os.path.join(DATASET_DIR, "config.json")):
@@ -20,8 +20,8 @@ METADATA = {
                 "render_params": render_params
             }
 
-#DESCRIPTION = None
-#METADATA = None
+DESCRIPTION = None
+METADATA = None
 
 # Initialize project
 wandb.init(project="5-view-classification", job_type="dataset-upload")
@@ -31,8 +31,8 @@ artifact = wandb.Artifact(DATASET_NAME, type="dataset",
                           description=DESCRIPTION,
                           metadata=METADATA)
 
-artifact.add_file(DATASET_DIR)
-#artifact.add_dir(DATASET_DIR)
+#artifact.add_file(DATASET_DIR)
+artifact.add_dir(DATASET_DIR)
 
 # Log dataset
 wandb.log_artifact(artifact)

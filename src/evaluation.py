@@ -13,22 +13,6 @@ def evaluate_and_log_model(model, output_dir, test_dataset_label, test_ds=None, 
 
     If test_ds (test dataset) is not provided, it is created using test_data_dir and config.
     In that case, validation_steps will be computed automatically from the test generator's sample count.
-
-    Args:
-        model (tf.keras.Model): The trained model to evaluate.
-        output_dir (str): Directory to save evaluation outputs.
-        test_dataset_label (str): A label identifying this test dataset evaluation (e.g., "dataset_A").
-        test_ds (tf.data.Dataset, optional): The test dataset. If None, test_data_dir is used to create it.
-        test_data_dir (str, optional): Path to test data directory used to create test_ds if not provided.
-        config (dict, optional): Configuration dictionary containing keys:
-                                 'views', 'input_shape', 'batch_size', etc.
-        class_names (list, optional): List of class names. If None and test_ds is not provided,
-                                      they are inferred from the generator.
-        validation_steps (int, optional): Number of validation steps. If None and test_ds is created here,
-                                          it is computed automatically.
-
-    Returns:
-        None
     """
     # If test_ds is not supplied, create the generator.
     if test_ds is None:
@@ -56,35 +40,26 @@ def evaluate_and_log_model(model, output_dir, test_dataset_label, test_ds=None, 
 
     # Evaluate the model.
     report, cm_fig, y_true, y_pred = evaluate_model(model, test_ds, class_names, validation_steps)
-    pred_wrong_fig = plot_predictions(model, test_ds, class_names)
-    
+    predictions_with_histogram = plot_predictions(model, test_ds, class_names)
+
     # Log unique keys using the test_dataset_label.
     wandb.log({
         f"{test_dataset_label}/classification_report": format_classification_report(report, class_names),
         f"{test_dataset_label}/confusion_matrix": wandb.Image(cm_fig),
-        f"{test_dataset_label}/wrong_predictions": wandb.Image(pred_wrong_fig),
+        f"{test_dataset_label}/predictions_with_histogram": wandb.Image(predictions_with_histogram),
     })
 
 def plot_confusion_matrix_from_cm(cm, class_names):
     """
     Plot a confusion matrix using seaborn with modifications
     to improve readability for a large number of classes.
-    
-    Args:
-         y_true: True class indices.
-         y_pred: Predicted class indices.
-         class_names: List of class names.
-         
-    Returns:
-         matplotlib.figure.Figure: The figure containing the confusion matrix.
     """
     fig, ax = plt.subplots(figsize=(20, 20))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
                 xticklabels=class_names, 
                 yticklabels=class_names,
                 ax=ax,
-                annot_kws={"fontsize": 6})  # Smaller annotation font size
-
+                annot_kws={"fontsize": 6})
     ax.set_xlabel('Predicted', fontsize=12)
     ax.set_ylabel('True', fontsize=12)
     ax.set_title('Confusion Matrix', fontsize=14)
@@ -95,127 +70,105 @@ def plot_confusion_matrix_from_cm(cm, class_names):
 
 def evaluate_model(model, test_dataset, class_names, validation_steps):
     """Evaluate model on the test dataset."""
-    # Collect all predictions and true labels
     y_true = []
     y_pred = []
-    
     for views, labels in test_dataset.take(validation_steps):
-        # Get predictions
         batch_preds = model.predict(views, verbose=0)
-        
-        # Convert to class indices
         batch_pred_classes = np.argmax(batch_preds, axis=1)
         batch_true_classes = np.argmax(labels.numpy(), axis=1)
-        
-        # Append to lists
         y_true.extend(batch_true_classes)
         y_pred.extend(batch_pred_classes)
-    
-    # Specify the full list of class labels:
     all_labels = list(range(len(class_names)))
-
-    # Generate classification report
     report = classification_report(y_true, y_pred, target_names=class_names, labels=all_labels, zero_division=0)
     print("Classification Report:")
     print(report)
-    
-    # Plot confusion matrix
     cm = confusion_matrix(y_true, y_pred, labels=all_labels)
     cm_fig = plot_confusion_matrix_from_cm(cm, class_names)
-    
     return report, cm_fig, y_true, y_pred
 
 def format_classification_report(report, class_names):
     """
     Given a classification report string and list of class names,
-    return a wandb.Table that can be logged. This version also includes 
-    summary metrics (accuracy, macro avg, weighted avg).
+    return a wandb.Table that can be logged.
     """
     report_lines = report.splitlines()
     table_data = []
     columns = ["Class", "Precision", "Recall", "F1-score", "Support"]
-    
-    # Extract per-class rows
     start = 2
     for line in report_lines[start:start + len(class_names)]:
         parts = line.split()
         if len(parts) < 5:
-            # In case the class name contains spaces
             class_name = " ".join(parts[:-4])
             parts = [class_name] + parts[-4:]
         table_data.append(parts)
-    
-    # Process summary rows.
     for line in report_lines[start + len(class_names):]:
         if not line.strip():
             continue
         if line.strip().startswith("accuracy"):
             parts = line.split()
-            # Format accuracy row as: ["accuracy", "", "", accuracy_value, support]
             if len(parts) == 3:
                 table_data.append(["accuracy", "", "", parts[1], parts[2]])
             else:
                 table_data.append(parts)
         elif line.strip().startswith("macro avg") or line.strip().startswith("weighted avg"):
             parts = line.split()
-            # If splitting produces 6 tokens, merge the first two.
             if len(parts) == 6:
                 parts = [" ".join(parts[:2])] + parts[2:]
             table_data.append(parts)
-    
     return wandb.Table(data=table_data, columns=columns)
 
 def plot_predictions(model, test_dataset, class_names, num_samples=5, visualize_original=True):
     """
     Generate a figure that visualizes predictions from the test dataset.
+    For each sample (a 5-view image), the figure displays:
+      - The 5 views (columns 1–5).
+      - A bar plot (column 6) showing the softmax probability distribution over all classes.
+    The first view includes an annotation of the true and predicted labels.
     
-    For a few samples (up to num_samples), this function displays all views for each sample 
-    along with the true and predicted labels on the first view.
-    Correct predictions are annotated in green, while wrong ones are annotated in red.
-    
-    Args:
-         model: Trained model.
-         test_dataset: A tf.data.Dataset yielding (views, labels).
-         class_names: List of class names.
-         num_samples: Maximum number of samples to display.
-         visualize_original: If True, displays images as produced by the generator.
-         
     Returns:
-         matplotlib.figure.Figure: The figure containing the visualization.
+         fig: The matplotlib figure with the visualization.
+         (Also returns preds, views, labels if needed for consistency, but here we return the figure for logging.)
     """
     # Take one batch from the test dataset.
     for views, labels in test_dataset.take(1):
         preds = model.predict(views, verbose=0)
         pred_classes = np.argmax(preds, axis=1)
         true_classes = np.argmax(labels.numpy(), axis=1)
+        confidences = np.max(preds, axis=1)
 
         num_samples = min(num_samples, len(true_classes))
         num_views = len(views)
-        fig = plt.figure(figsize=(5 * num_views, 4 * num_samples))
-
-        # Loop over samples and views.
+        # Create grid with 6 columns: 5 views + 1 bar plot.
+        fig, axs = plt.subplots(num_samples, num_views + 1, figsize=((num_views + 1) * 3, num_samples * 3))
+        if num_samples == 1:
+            axs = np.expand_dims(axs, axis=0)
+        
         for i in range(num_samples):
+            # Plot each of the 5 views.
             for v in range(num_views):
+                ax = axs[i, v]
                 image = views[v][i].numpy()
-                # if not visualize_original:
-                #     # Reverse any preprocessing (e.g., for ResNet50).
-                #     image = image + np.array([103.939, 116.779, 123.68])
-                #     image = image[..., ::-1]  # Convert BGR to RGB if needed.
                 image = np.clip(image, 0, 255).astype('uint8')
-
-                ax = fig.add_subplot(num_samples, num_views, i * num_views + v + 1)
                 ax.imshow(image)
-                # Annotate on the first view only.
-                if v == 0:
-                    true_class = true_classes[i]
-                    pred_class = pred_classes[i]
-                    annotation_color = "green" if true_class == pred_class else "red"
-                    ax.text(
-                        5, 25,
-                        f"True: {class_names[true_class]}, Pred: {class_names[pred_class]}",
-                        fontsize=12, color=annotation_color, backgroundcolor="black",
-                        verticalalignment="top", bbox=dict(facecolor="black", alpha=0.5)
-                    )
                 ax.axis("off")
+                if v == 0:
+                    true_label = class_names[true_classes[i]]
+                    pred_label = class_names[pred_classes[i]]
+                    conf = confidences[i] * 100
+                    color = "green" if true_classes[i] == pred_classes[i] else "red"
+                    ax.set_title(f"T: {true_label}\nP: {pred_label}\nConf: {conf:.1f}%", color=color, fontsize=10)
+            # Create bar plot (histogram) for softmax scores.
+            ax_hist = axs[i, -1]
+            sample_probs = preds[i]  # softmax probabilities for this sample
+            bars = ax_hist.bar(range(len(class_names)), sample_probs, color="grey")
+            # Highlight the predicted class.
+            bars[pred_classes[i]].set_color("blue")
+            # Annotate each bar with its probability value.
+            for j, prob in enumerate(sample_probs):
+                ax_hist.text(j, prob, f"{prob:.2f}", ha="center", va="bottom", fontsize=8)
+            ax_hist.set_xticks(range(len(class_names)))
+            ax_hist.set_xticklabels(class_names, rotation=45, fontsize=8)
+            ax_hist.set_ylim([0, 1])
+            ax_hist.set_title("Softmax Scores", fontsize=10)
         plt.tight_layout()
         return fig

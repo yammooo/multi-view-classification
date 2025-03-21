@@ -8,6 +8,8 @@ datasets.append("test_edges:latest")
 datasets.append("test_good_conditions:latest")
 datasets.append("test_other_objects_interference:latest")
 datasets.append("test_partial_occlusion:latest")
+datasets.append("test_charging_brick:v0")
+datasets.append("test_red_marker:v0")
 
 def download_dataset(label):
     # Initialize W&B
