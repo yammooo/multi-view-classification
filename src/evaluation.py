@@ -117,18 +117,20 @@ def format_classification_report(report, class_names):
             table_data.append(parts)
     return wandb.Table(data=table_data, columns=columns)
 
-def plot_predictions(model, test_dataset, class_names, num_samples=5, visualize_original=True):
+def plot_predictions(model, test_dataset, class_names, num_samples=10, visualize_original=True):
     """
-    Generate a figure that visualizes predictions from the test dataset.
+    Generate a figure to visualize predictions from the test dataset.
     For each sample (a 5-view image), the figure displays:
-      - The 5 views (columns 1–5).
-      - A bar plot (column 6) showing the softmax probability distribution over all classes.
+      - The 5 views (each in a fixed square cell).
+      - A bar plot (last column) showing the softmax probability distribution over all classes,
+        allocated extra horizontal space so that 80 classes can be read.
     The first view includes an annotation of the true and predicted labels.
     
     Returns:
-         fig: The matplotlib figure with the visualization.
-         (Also returns preds, views, labels if needed for consistency, but here we return the figure for logging.)
+         fig: The high-resolution matplotlib figure.
     """
+    import matplotlib.gridspec as gridspec
+
     # Take one batch from the test dataset.
     for views, labels in test_dataset.take(1):
         preds = model.predict(views, verbose=0)
@@ -138,15 +140,24 @@ def plot_predictions(model, test_dataset, class_names, num_samples=5, visualize_
 
         num_samples = min(num_samples, len(true_classes))
         num_views = len(views)
-        # Create grid with 6 columns: 5 views + 1 bar plot.
-        fig, axs = plt.subplots(num_samples, num_views + 1, figsize=((num_views + 1) * 3, num_samples * 3))
-        if num_samples == 1:
-            axs = np.expand_dims(axs, axis=0)
-        
+
+        # Use a fixed cell size for view images (square cells)...
+        cell_size = 5  # each view cell is 5-inch square
+        hist_ratio = 3  # histogram column will be 3 times as wide as a view cell
+
+        fig_width = (num_views * cell_size) + (hist_ratio * cell_size)
+        fig_height = num_samples * cell_size
+
+        # Create a high-resolution figure.
+        fig = plt.figure(figsize=(fig_width, fig_height), dpi=300)
+        # Use gridSpec: first num_views columns (ratio=1 each) for views and one column (ratio=hist_ratio) for histogram.
+        gs = gridspec.GridSpec(num_samples, num_views + 1, figure=fig,
+                                 width_ratios=[1]*num_views + [hist_ratio])
+    
         for i in range(num_samples):
-            # Plot each of the 5 views.
+            # Plot the multi-view images.
             for v in range(num_views):
-                ax = axs[i, v]
+                ax = fig.add_subplot(gs[i, v])
                 image = views[v][i].numpy()
                 image = np.clip(image, 0, 255).astype('uint8')
                 ax.imshow(image)
@@ -157,17 +168,19 @@ def plot_predictions(model, test_dataset, class_names, num_samples=5, visualize_
                     conf = confidences[i] * 100
                     color = "green" if true_classes[i] == pred_classes[i] else "red"
                     ax.set_title(f"T: {true_label}\nP: {pred_label}\nConf: {conf:.1f}%", color=color, fontsize=10)
-            # Create bar plot (histogram) for softmax scores.
-            ax_hist = axs[i, -1]
-            sample_probs = preds[i]  # softmax probabilities for this sample
-            bars = ax_hist.bar(range(len(class_names)), sample_probs, color="grey")
+
+            # Plot the histogram for softmax scores.
+            ax_hist = fig.add_subplot(gs[i, -1])
+            sample_probs = preds[i]  # softmax probabilities for sample i
+            bars = ax_hist.bar(range(len(class_names)), sample_probs, color="grey", width=0.8)
             # Highlight the predicted class.
             bars[pred_classes[i]].set_color("blue")
-            # Annotate each bar with its probability value.
+            # Annotate each bar with its probability.
             for j, prob in enumerate(sample_probs):
-                ax_hist.text(j, prob, f"{prob:.2f}", ha="center", va="bottom", fontsize=8)
+                ax_hist.text(j, prob, f"{prob:.2f}", ha="center", va="bottom", fontsize=4, rotation=90)
+            # Set all tick labels so they align with the bars.
             ax_hist.set_xticks(range(len(class_names)))
-            ax_hist.set_xticklabels(class_names, rotation=45, fontsize=8)
+            ax_hist.set_xticklabels(class_names, rotation=90, fontsize=4)
             ax_hist.set_ylim([0, 1])
             ax_hist.set_title("Softmax Scores", fontsize=10)
         plt.tight_layout()

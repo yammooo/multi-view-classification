@@ -4,10 +4,10 @@ wandb.login()
 datasets = []
 
 # datasets.append("synt_real_75_5_dataset:v0")
-datasets.append("test_edges:latest")
-datasets.append("test_good_conditions:latest")
-datasets.append("test_other_objects_interference:latest")
-datasets.append("test_partial_occlusion:latest")
+datasets.append("test_edges:v0")
+datasets.append("test_good_conditions:v0")
+datasets.append("test_other_objects_interference:v0")
+datasets.append("test_partial_occlusion:v0")
 datasets.append("test_charging_brick:v0")
 datasets.append("test_red_marker:v0")
 

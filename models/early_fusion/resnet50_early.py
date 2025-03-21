@@ -4,6 +4,7 @@ from keras.applications import ResNet50
 from keras.models import Model
 from keras.layers import Input, Concatenate, Conv2D, Layer, BatchNormalization
 
+@keras.saving.register_keras_serializable()
 class StackReduceLayer(Layer):
     def __init__(self, **kwargs):
         super(StackReduceLayer, self).__init__(**kwargs)

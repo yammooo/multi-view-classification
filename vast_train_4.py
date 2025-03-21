@@ -28,7 +28,7 @@ def main():
             "dataset_artifact": "synt+real_75+5_dataset:v0",
             "input_shape": (224, 224, 3),
             "batch_size": 16,
-            "epochs": 10,
+            "epochs": 20,
             "optimizer": "adam",
             "backbone_model": "resnet50",
             "loss": "categorical_crossentropy",
@@ -107,19 +107,19 @@ def main():
                 save_weights_only=False,
                 verbose=1
             ),
-            tf.keras.callbacks.EarlyStopping(
-                monitor='val_accuracy',
-                patience=3,
-                restore_best_weights=True,
-                verbose=1
-            ),
-            tf.keras.callbacks.ReduceLROnPlateau(
-                monitor='val_loss',
-                factor=0.5,
-                patience=2,
-                min_lr=1e-6,
-                verbose=1
-            ),
+            # tf.keras.callbacks.EarlyStopping(
+            #     monitor='val_accuracy',
+            #     patience=3,
+            #     restore_best_weights=True,
+            #     verbose=1
+            # ),
+            # tf.keras.callbacks.ReduceLROnPlateau(
+            #     monitor='val_loss',
+            #     factor=0.5,
+            #     patience=2,
+            #     min_lr=1e-6,
+            #     verbose=1
+            # ),
         ]
 
     # ------------------- Training and Evaluation on Base Dataset -------------------
@@ -145,16 +145,22 @@ def main():
     test_good_condition_label =             "test_good_conditions:v0"
     test_other_objects_interference_label = "test_other_objects_interference:v0"
     test_partial_occlusion_label =          "test_partial_occlusion:v0"
+    test_red_marker_label =                 "test_red_marker:v0"
+    test_charging_brick_label =             "test_charging_brick:v0"
 
     test_edges_dir =                        os.path.join(base_dir, "artifacts", test_edges_label)
     test_good_condition_dir =               os.path.join(base_dir, "artifacts", test_good_condition_label)
     test_other_objects_interference_dir =   os.path.join(base_dir, "artifacts", test_other_objects_interference_label)
     test_partial_occlusion_dir =            os.path.join(base_dir, "artifacts", test_partial_occlusion_label)
+    test_red_marker_dir =                   os.path.join(base_dir, "artifacts", test_red_marker_label)
+    test_charging_brick_dir =               os.path.join(base_dir, "artifacts", test_charging_brick_label)
     
     evaluate_and_log_model(model, output_dir, test_edges_label, None, test_edges_dir, config, class_names, None)
     evaluate_and_log_model(model, output_dir, test_good_condition_label, None, test_good_condition_dir, config, class_names, None)
     evaluate_and_log_model(model, output_dir, test_other_objects_interference_label, None, test_other_objects_interference_dir, config, class_names, None)
     evaluate_and_log_model(model, output_dir, test_partial_occlusion_label, None, test_partial_occlusion_dir, config, class_names, None)
+    evaluate_and_log_model(model, output_dir, test_red_marker_label, None, test_red_marker_dir, config, class_names, None)
+    evaluate_and_log_model(model, output_dir, test_charging_brick_label, None, test_charging_brick_dir, config, class_names, None)
 
 
     # ------------------- Finish -------------------
