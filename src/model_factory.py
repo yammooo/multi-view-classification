@@ -21,11 +21,21 @@ def build_model(config):
     if fusion_strategy == "early":
         if backbone == "resnet50":
             from models.early_fusion.resnet50_early import build_5_view_resnet50_early
-            model = build_5_view_resnet50_early(input_shape=input_shape,
-                                               num_classes=num_classes,
-                                               fusion_method=fusion_method)
+
+            insertion_layer = config.get("fusion_depth")
+            next_start_layer = config.get("next_start_layer")
+
+            model = build_5_view_resnet50_early(
+                input_shape=input_shape,
+                insertion_layer=insertion_layer,
+                next_start_layer=next_start_layer,
+                num_classes=num_classes,
+                fusion_method=fusion_method
+            )
+
             if freeze_config:
                 apply_freeze_config(model, freeze_config)
+            
             return model
     elif fusion_strategy == "late":
         if backbone == "resnet50":

@@ -2,8 +2,8 @@ from train import *
 
 config = {
     "fusion_strategy": "early",
-    "fusion_depth": "conv3_block4_out",
-    "next_start_layer": "conv4_block1_1_conv",
+    "fusion_depth": "conv5_block3_out",
+    "next_start_layer": None,
     "fusion_method": "max",
 }
 

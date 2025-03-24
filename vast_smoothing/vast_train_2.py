@@ -16,38 +16,32 @@ from model_factory import build_model
 np.random.seed(42)
 tf.random.set_seed(42)
 
-def main(optional_config=None):
+def main():
 
-    # ------------------- Default Configuration -------------------
-    default_config = {
-        "dataset_artifact": "synt+real_75+5_dataset:v0",
-        "input_shape": (224, 224, 3),
-        "batch_size": 64,
-        "epochs": 5,
-        "optimizer": "adam",
-        "backbone_model": "resnet50",
-        "loss": "categorical_crossentropy",
-        "label_smoothing": 0.2,
+    # ------------------- Configuration -------------------
 
-        "fusion_strategy": "early",
-        "fusion_depth": "conv2_block3_out",
-        "next_start_layer": "conv3_block1_1_conv",
-        "fusion_method": "max",
-        "freeze_config": {"freeze_blocks": ["conv1", "conv2", "conv3"]},
-
-        "learning_rate": 1e-4,
-        "differential_lr": False,
-    }
-    
-    # Merge optional configuration if provided.
-    if optional_config:
-        default_config.update(optional_config)
-    
-    # ------------------- Wandb Initialization -------------------
     wandb.init(
         project="5-view-classification",
         job_type="train",
-        config=default_config
+        config={
+            "dataset_artifact": "synt+real_75+5_dataset:v0",
+            "input_shape": (224, 224, 3),
+            "batch_size": 64,
+            "epochs": 5,
+            "optimizer": "adam",
+            "backbone_model": "resnet50",
+            "loss": "categorical_crossentropy",
+            "label_smoothing": 0.2,
+
+            "fusion_strategy": "early",
+            "fusion_depth": "conv2_block3_out",
+            "next_start_layer": "conv3_block1_1_conv",
+            "fusion_method": "max",
+            "freeze_config": {"freeze_blocks": ["conv1", "conv2", "conv3"]},
+
+            "learning_rate": 1e-4,
+            "differential_lr": False,
+        }
     )
     config = wandb.config
     

@@ -23,16 +23,21 @@ def split_resnet50(insertion_layer_name, next_start_layer_name, input_shape=(512
         inputs=full_model.input,
         outputs=full_model.get_layer(insertion_layer_name).output
     )
-    part2 = Model(
-        inputs=full_model.get_layer(next_start_layer_name).input,
-        outputs=full_model.output
-    )
-    # Tag layers in part1 and part2 as backbone.
+    
     for layer in part1.layers:
         layer._group = "backbone"
-    for layer in part2.layers:
-        layer._group = "backbone"
 
+    part2 = None
+
+    if next_start_layer_name is not None:
+        part2 = Model(
+            inputs=full_model.get_layer(next_start_layer_name).input,
+            outputs=full_model.output
+        )
+
+        for layer in part2.layers:
+            layer._group = "backbone"
+    
     return part1, part2
 
 def build_5_view_resnet50_early(input_shape=(224, 224, 3),
@@ -69,9 +74,12 @@ def build_5_view_resnet50_early(input_shape=(224, 224, 3),
         raise ValueError("fusion_method must be either 'max' or 'conv'")
     
     print("Shape after fusion:", fused.shape)
-    
-    x = part2(fused)
-    x = tf.keras.layers.GlobalAveragePooling2D(name="global_avg_pool")(x)
+
+    if part2:
+        x = part2(fused)
+        x = tf.keras.layers.GlobalAveragePooling2D(name="global_avg_pool")(x)
+    else:
+        x = tf.keras.layers.GlobalAveragePooling2D(name="global_avg_pool")(fused)
     
     fc_layer = tf.keras.layers.Dense(1024, activation='relu', name='fc_1024')
     fc_layer._group = "classifier"
