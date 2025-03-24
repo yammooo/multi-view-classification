@@ -8,11 +8,11 @@ import seaborn as sns
 
 def evaluate_and_log_model(model, output_dir, test_dataset_label, test_ds=None, test_data_dir=None, config=None, class_names=None, validation_steps=None):
     """
-    Evaluates the given model on the test dataset and logs results to WandB under unique keys
-    prefixed with test_dataset_label to allow multiple evaluations in one run.
-
-    If test_ds (test dataset) is not provided, it is created using test_data_dir and config.
-    In that case, validation_steps will be computed automatically from the test generator's sample count.
+    Evaluates the given model on the test dataset and logs results to WandB.
+    
+    Overall metrics (classification report, confusion matrix) are logged.
+    Additionally, for one batch from the test dataset, per-sample predictions (5-view image and prediction histogram)
+    are aggregated into a wandb.Table and logged.
     """
     # If test_ds is not supplied, create the generator.
     if test_ds is None:
@@ -32,27 +32,45 @@ def evaluate_and_log_model(model, output_dir, test_dataset_label, test_ds=None, 
         test_ds = test_gen.get_test_dataset()
         if class_names is None:
             class_names = test_gen.get_class_names()
-        # Automatically compute validation_steps from the generator sample count if not provided.
         if validation_steps is None:
             validation_steps = len(test_gen.test_samples) // batch_size
             if len(test_gen.test_samples) % batch_size != 0:
                 validation_steps += 1
 
-    # Evaluate the model.
+    # Evaluate overall metrics.
     report, cm_fig, y_true, y_pred = evaluate_model(model, test_ds, class_names, validation_steps)
-    predictions_with_histogram = plot_predictions(model, test_ds, class_names)
-
-    # Log unique keys using the test_dataset_label.
     wandb.log({
         f"{test_dataset_label}/classification_report": format_classification_report(report, class_names),
-        f"{test_dataset_label}/confusion_matrix": wandb.Image(cm_fig),
-        f"{test_dataset_label}/predictions_with_histogram": wandb.Image(predictions_with_histogram),
+        f"{test_dataset_label}/confusion_matrix": wandb.Image(cm_fig)
     })
+
+    # Create a table for sample-level predictions.
+    sample_table = wandb.Table(columns=["Sample", "True Label", "Predicted Label", "Views", "Histogram"])
+    
+    # Process one batch from the test dataset.
+    for views, labels in test_ds.take(1):
+        preds = model.predict(views, verbose=0)
+        pred_classes = np.argmax(preds, axis=1)
+        true_classes = np.argmax(labels.numpy(), axis=1)
+        num_views = len(views)
+        num_samples = len(true_classes)
+
+        for i in range(num_samples):
+            # Build the multi-view image figure.
+            sample_views = [views[v][i].numpy() for v in range(num_views)]
+            fig_views = plot_sample_views(sample_views, true_classes[i], pred_classes[i], class_names)
+            # Build the histogram figure of softmax scores.
+            fig_hist = plot_sample_histogram(preds[i], class_names)
+            # Add row to the table.
+            sample_table.add_data(i, class_names[true_classes[i]], class_names[pred_classes[i]],
+                                    wandb.Image(fig_views),
+                                    wandb.Image(fig_hist))
+    
+    wandb.log({f"{test_dataset_label}/sample_table": sample_table})
 
 def plot_confusion_matrix_from_cm(cm, class_names):
     """
-    Plot a confusion matrix using seaborn with modifications
-    to improve readability for a large number of classes.
+    Plot a confusion matrix using seaborn with modifications for readability.
     """
     fig, ax = plt.subplots(figsize=(20, 20))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
@@ -88,7 +106,7 @@ def evaluate_model(model, test_dataset, class_names, validation_steps):
 
 def format_classification_report(report, class_names):
     """
-    Given a classification report string and list of class names,
+    Given a classification report string and a list of class names,
     return a wandb.Table that can be logged.
     """
     report_lines = report.splitlines()
@@ -117,71 +135,38 @@ def format_classification_report(report, class_names):
             table_data.append(parts)
     return wandb.Table(data=table_data, columns=columns)
 
-def plot_predictions(model, test_dataset, class_names, num_samples=10, visualize_original=True):
+def plot_sample_views(sample_views, true_class, pred_class, class_names):
     """
-    Generate a figure to visualize predictions from the test dataset.
-    For each sample (a 5-view image), the figure displays:
-      - The 5 views (each in a fixed square cell).
-      - A bar plot (last column) showing the softmax probability distribution over all classes,
-        allocated extra horizontal space so that 80 classes can be read.
-    The first view includes an annotation of the true and predicted labels.
-    
-    Returns:
-         fig: The high-resolution matplotlib figure.
+    Create a figure for one sample showing its 5-view images.
+    The first view is annotated with the true and predicted labels.
     """
-    import matplotlib.gridspec as gridspec
+    num_views = len(sample_views)
+    fig = plt.figure(figsize=(5 * num_views, 4))
+    for j, image in enumerate(sample_views):
+        ax = fig.add_subplot(1, num_views, j + 1)
+        image = np.clip(image, 0, 255).astype('uint8')
+        ax.imshow(image)
+        ax.axis("off")
+        if j == 0:
+            color = "green" if true_class == pred_class else "red"
+            ax.set_title(f"True: {class_names[true_class]}\nPred: {class_names[pred_class]}", color=color, fontsize=12)
+    plt.tight_layout()
+    return fig
 
-    # Take one batch from the test dataset.
-    for views, labels in test_dataset.take(1):
-        preds = model.predict(views, verbose=0)
-        pred_classes = np.argmax(preds, axis=1)
-        true_classes = np.argmax(labels.numpy(), axis=1)
-        confidences = np.max(preds, axis=1)
-
-        num_samples = min(num_samples, len(true_classes))
-        num_views = len(views)
-
-        # Use a fixed cell size for view images (square cells)...
-        cell_size = 5  # each view cell is 5-inch square
-        hist_ratio = 3  # histogram column will be 3 times as wide as a view cell
-
-        fig_width = (num_views * cell_size) + (hist_ratio * cell_size)
-        fig_height = num_samples * cell_size
-
-        # Create a high-resolution figure.
-        fig = plt.figure(figsize=(fig_width, fig_height), dpi=300)
-        # Use gridSpec: first num_views columns (ratio=1 each) for views and one column (ratio=hist_ratio) for histogram.
-        gs = gridspec.GridSpec(num_samples, num_views + 1, figure=fig,
-                                 width_ratios=[1]*num_views + [hist_ratio])
-    
-        for i in range(num_samples):
-            # Plot the multi-view images.
-            for v in range(num_views):
-                ax = fig.add_subplot(gs[i, v])
-                image = views[v][i].numpy()
-                image = np.clip(image, 0, 255).astype('uint8')
-                ax.imshow(image)
-                ax.axis("off")
-                if v == 0:
-                    true_label = class_names[true_classes[i]]
-                    pred_label = class_names[pred_classes[i]]
-                    conf = confidences[i] * 100
-                    color = "green" if true_classes[i] == pred_classes[i] else "red"
-                    ax.set_title(f"T: {true_label}\nP: {pred_label}\nConf: {conf:.1f}%", color=color, fontsize=10)
-
-            # Plot the histogram for softmax scores.
-            ax_hist = fig.add_subplot(gs[i, -1])
-            sample_probs = preds[i]  # softmax probabilities for sample i
-            bars = ax_hist.bar(range(len(class_names)), sample_probs, color="grey", width=0.8)
-            # Highlight the predicted class.
-            bars[pred_classes[i]].set_color("blue")
-            # Annotate each bar with its probability.
-            for j, prob in enumerate(sample_probs):
-                ax_hist.text(j, prob, f"{prob:.2f}", ha="center", va="bottom", fontsize=4, rotation=90)
-            # Set all tick labels so they align with the bars.
-            ax_hist.set_xticks(range(len(class_names)))
-            ax_hist.set_xticklabels(class_names, rotation=90, fontsize=4)
-            ax_hist.set_ylim([0, 1])
-            ax_hist.set_title("Softmax Scores", fontsize=10)
-        plt.tight_layout()
-        return fig
+def plot_sample_histogram(sample_probs, class_names):
+    """
+    Create a Matplotlib bar plot displaying the prediction probabilities
+    for each class for the given sample.
+    """
+    fig, ax = plt.subplots(figsize=(10, 4))
+    bars = ax.bar(range(len(class_names)), sample_probs, color="grey")
+    pred_class = int(np.argmax(sample_probs))
+    bars[pred_class].set_color("blue")
+    for j, prob in enumerate(sample_probs):
+        ax.text(j, prob, f"{prob:.2f}", ha="center", va="bottom", fontsize=6, rotation=90)
+    ax.set_xticks(range(len(class_names)))
+    ax.set_xticklabels(class_names, rotation=90, fontsize=6)
+    ax.set_ylim(0, 1)
+    ax.set_title("Prediction Score Distribution", fontsize=10)
+    plt.tight_layout()
+    return fig

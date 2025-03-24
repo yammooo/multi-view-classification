@@ -77,7 +77,6 @@ def build_5_view_resnet50_early(input_shape=(224, 224, 3),
     fc_layer._group = "classifier"
     x = fc_layer(x)
     
-    # Added BatchNormalization after the dense layer.
     bn_layer = BatchNormalization(name="bn_fc")
     bn_layer._group = "classifier"
     x = bn_layer(x)
@@ -86,7 +85,7 @@ def build_5_view_resnet50_early(input_shape=(224, 224, 3),
     dropout_layer._group = "classifier"
     x = dropout_layer(x)
     
-    pred_layer = tf.keras.layers.Dense(num_classes, activation='softmax', name="prediction")
+    pred_layer = tf.keras.layers.Dense(num_classes, activation='softmax', name="predictions")
     pred_layer._group = "classifier"
     output = pred_layer(x)
     
