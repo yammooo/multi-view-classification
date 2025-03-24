@@ -27,7 +27,7 @@ def main():
             "dataset_artifact": "synt+real_75+5_dataset:v0",
             "input_shape": (224, 224, 3),
             "batch_size": 64,
-            "epochs": 20,
+            "epochs": 5,
             "optimizer": "adam",
             "backbone_model": "resnet50",
             "loss": "categorical_crossentropy",
