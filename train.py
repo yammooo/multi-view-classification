@@ -22,8 +22,8 @@ def main(optional_config=None):
     default_config = {
         "dataset_artifact": "synt+real_75+5_dataset:v0",
         "input_shape": (224, 224, 3),
-        "batch_size": 64,
-        "epochs": 5,
+        "batch_size": 32,
+        "epochs": 20,
         "optimizer": "adam",
         "backbone_model": "resnet50",
         "loss": "categorical_crossentropy",
