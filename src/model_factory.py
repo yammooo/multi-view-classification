@@ -42,9 +42,17 @@ def build_model(config):
             from models.late_fusion.resnet50_late import build_5_view_resnet50_late
             model = build_5_view_resnet50_late(input_shape=input_shape,
                                                num_classes=num_classes,
-                                               fusion_type=fusion_method)
+                                               fusion_method=fusion_method)
             if freeze_config:
                 apply_freeze_config(model, freeze_config)
             return model
+    elif fusion_strategy == "score":
+        from models.score_fusion.resnet50_score import build_5_view_resnet50_score
+        model = build_5_view_resnet50_score(input_shape=input_shape,
+                                            num_classes=num_classes,
+                                            fusion_method=fusion_method)
+        if freeze_config:
+            apply_freeze_config(model, freeze_config)
+        return model
     else:
         raise ValueError("Unknown fusion strategy: " + fusion_strategy)
