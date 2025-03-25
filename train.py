@@ -24,7 +24,7 @@ def main(optional_config=None):
         "input_shape": (224, 224, 3),
         "batch_size": 16,
         "epochs": 10,
-        "optimizer": "adam",
+        "optimizer": "AdamW",
         "backbone_model": "resnet50",
         "loss": "categorical_crossentropy",
         "label_smoothing": 0.1,
@@ -104,7 +104,7 @@ def main(optional_config=None):
         alpha=config.alpha
     )
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+    optimizer = tf.keras.optimizers.AdamW(learning_rate=lr_schedule)
 
     loss = tf.keras.losses.CategoricalCrossentropy(label_smoothing=config.label_smoothing)
 
