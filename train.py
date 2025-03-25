@@ -30,8 +30,8 @@ def main(optional_config=None):
         "label_smoothing": 0.1,
 
         "learning_rate_scheduler": "cosine",
-        "initial_learning_rate": 5e-5,
-        "alpha": 1e-6,
+        "initial_learning_rate": 1e-5,
+        "alpha": 1e-7,
 
         "fusion_strategy": "early",
         "fusion_depth": "conv2_block3_out",

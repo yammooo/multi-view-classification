@@ -85,7 +85,7 @@ def build_5_view_resnet50_early(input_shape=(224, 224, 3),
         1024,
         activation='relu',
         name='fc_1024',
-        kernel_regularizer=keras.regularizers.l2(1e-5)
+        kernel_regularizer=keras.regularizers.l2(1e-4)
     )
     fc_layer._group = "classifier"
     x = fc_layer(x)
