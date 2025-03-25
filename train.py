@@ -22,12 +22,16 @@ def main(optional_config=None):
     default_config = {
         "dataset_artifact": "synt+real_75+5_dataset:v0",
         "input_shape": (224, 224, 3),
-        "batch_size": 32,
+        "batch_size": 16,
         "epochs": 20,
         "optimizer": "adam",
         "backbone_model": "resnet50",
         "loss": "categorical_crossentropy",
-        "label_smoothing": 0.2,
+        "label_smoothing": 0.1,
+
+        "learning_rate_scheduler": "cosine",
+        "initial_learning_rate": 5e-5,
+        "alpha": 1e-6,
 
         "fusion_strategy": "early",
         "fusion_depth": "conv2_block3_out",
@@ -35,7 +39,6 @@ def main(optional_config=None):
         "fusion_method": "max",
         "freeze_config": {"freeze_blocks": ["conv1", "conv2", "conv3"]},
 
-        "learning_rate": 1e-4,
         "differential_lr": False,
     }
     
@@ -82,11 +85,26 @@ def main(optional_config=None):
 
     # ------------------- Building Model -------------------
 
+    steps_per_epoch = len(data_gen.train_samples) // batch_size
+    if len(data_gen.train_samples) % batch_size != 0:
+        steps_per_epoch += 1
+    
+    validation_steps = len(data_gen.test_samples) // batch_size
+    if len(data_gen.test_samples) % batch_size != 0:
+        validation_steps += 1
+
+    total_steps = config.epochs * steps_per_epoch
+
     print("Building model via factory...")
     model = build_model(config)
     
-    # Optimizer
-    optimizer = tf.keras.optimizers.Adam(config.learning_rate)
+    lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
+        initial_learning_rate=config.initial_learning_rate,
+        decay_steps=total_steps,
+        alpha=config.alpha
+    )
+
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 
     loss = tf.keras.losses.CategoricalCrossentropy(label_smoothing=config.label_smoothing)
 
@@ -96,14 +114,6 @@ def main(optional_config=None):
         loss=loss,
         metrics=['accuracy']
     )
-
-    steps_per_epoch = len(data_gen.train_samples) // batch_size
-    if len(data_gen.train_samples) % batch_size != 0:
-        steps_per_epoch += 1
-    
-    validation_steps = len(data_gen.test_samples) // batch_size
-    if len(data_gen.test_samples) % batch_size != 0:
-        validation_steps += 1
 
     # ------------------- Callbacks -------------------
 

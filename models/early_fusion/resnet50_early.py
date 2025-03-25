@@ -81,7 +81,12 @@ def build_5_view_resnet50_early(input_shape=(224, 224, 3),
     else:
         x = tf.keras.layers.GlobalAveragePooling2D(name="global_avg_pool")(fused)
     
-    fc_layer = tf.keras.layers.Dense(1024, activation='relu', name='fc_1024')
+    fc_layer = tf.keras.layers.Dense(
+        1024,
+        activation='relu',
+        name='fc_1024',
+        kernel_regularizer=keras.regularizers.l2(1e-5)
+    )
     fc_layer._group = "classifier"
     x = fc_layer(x)
     
@@ -89,11 +94,15 @@ def build_5_view_resnet50_early(input_shape=(224, 224, 3),
     bn_layer._group = "classifier"
     x = bn_layer(x)
     
-    dropout_layer = keras.layers.Dropout(0.5, name="dropout")
+    dropout_layer = keras.layers.Dropout(0.2, name="dropout")
     dropout_layer._group = "classifier"
     x = dropout_layer(x)
     
-    pred_layer = tf.keras.layers.Dense(num_classes, activation='softmax', name="predictions")
+    pred_layer = tf.keras.layers.Dense(
+        num_classes,
+        activation='softmax',
+        name="predictions"
+    )
     pred_layer._group = "classifier"
     output = pred_layer(x)
     
@@ -114,7 +123,7 @@ if __name__ == "__main__":
         insertion_layer="conv2_block3_out",
         next_start_layer="conv3_block1_1_conv",
         num_classes=5,
-        fusion_method="max"
+        fusion_method="conv"
     )
     model.summary()
     
@@ -132,7 +141,7 @@ if __name__ == "__main__":
     # Import and apply a freeze configuration from model_helpers.
     # For example, freezing any layer whose name contains "conv1", "conv2", etc.
     from model_helpers import apply_freeze_config
-    freeze_config = {"freeze_blocks": ["conv1", "conv2", "conv3", "conv4", "conv5"]}
+    freeze_config = {"freeze_blocks": ["conv1", "conv2", "conv3"]}
     apply_freeze_config(model, freeze_config)
     
     print("\nAfter applying freeze config:")
