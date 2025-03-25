@@ -17,7 +17,7 @@ def create_view_branch(input_shape, num_classes):
     bn_layer._group = "classifier"
     x = bn_layer(x)
 
-    x = keras.layers.Dropout(0.5)(x)
+    x = keras.layers.Dropout(0.25)(x)
     x._group = "classifier"
 
     # Create the branch model.
@@ -27,7 +27,7 @@ def create_view_branch(input_shape, num_classes):
     branch_model = keras.Model(inputs=base_model.input, outputs=output)
     return branch_model
 
-def build_5_view_resnet50_score(input_shape=(512, 512, 3), num_classes=5, fusion_method='fc'):
+def build_5_view_resnet50_score(input_shape=(224, 224, 3), num_classes=5, fusion_method='fc'):
     input_views = []
     branch_outputs = []
     

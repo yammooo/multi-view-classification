@@ -29,7 +29,7 @@ def create_view_branch(input_shape):
     bn_layer._group = "classifier"
     x = bn_layer(x)
 
-    x = keras.layers.Dropout(0.5)(x)
+    x = keras.layers.Dropout(0.25)(x)
     x._group = "classifier"
 
     branch_model = keras.Model(inputs=base_model.input, outputs=x)
@@ -69,7 +69,7 @@ def build_5_view_resnet50_late(input_shape=(224, 224, 3),
         bn_layer._group = "classifier"
         x = bn_layer(x)
 
-        x = keras.layers.Dropout(0.5)(x)
+        x = keras.layers.Dropout(0.25)(x)
         x._group = "classifier"
     else:
         raise ValueError("Unknown fusion_type. Use 'fc' or 'max'.")

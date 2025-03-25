@@ -16,6 +16,13 @@ from model_factory import build_model
 np.random.seed(42)
 tf.random.set_seed(42)
 
+import gc
+
+class MemoryClearCallback(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        gc.collect()
+        print(f"Epoch {epoch} ended—garbage collection triggered.")
+
 def main(optional_config=None):
 
     # ------------------- Default Configuration -------------------
@@ -125,6 +132,7 @@ def main(optional_config=None):
                 save_weights_only=False,
                 verbose=1
             ),
+            MemoryClearCallback(),
             # tf.keras.callbacks.EarlyStopping(
             #     monitor='val_accuracy',
             #     patience=3,

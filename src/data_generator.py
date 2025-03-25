@@ -141,7 +141,7 @@ class SimpleMultiViewDataGenerator:
         return tf.data.Dataset.from_generator(
             lambda: self._data_generator(self.train_samples),
             output_signature=output_signature
-        ).prefetch(tf.data.experimental.AUTOTUNE)
+        ).prefetch(2)
 
     def get_test_dataset(self):
         output_signature = (
@@ -152,7 +152,7 @@ class SimpleMultiViewDataGenerator:
         return tf.data.Dataset.from_generator(
             lambda: self._data_generator(self.test_samples),
             output_signature=output_signature
-        ).prefetch(tf.data.experimental.AUTOTUNE)
+        ).prefetch(2)
 
     def get_class_names(self):
         return self.category_list
