@@ -48,8 +48,6 @@ def train(optional_config=None):
         "freeze_config": {"freeze_blocks": ["conv1", "conv2", "conv3"]},
 
         "differential_lr": False,
-
-        "random_state": 42,
     }
     
     # Merge optional configuration if provided.
@@ -76,8 +74,7 @@ def train(optional_config=None):
     data_gen = SimpleMultiViewDataGenerator(
         data_dir=ds_dir,
         input_shape=input_shape,
-        batch_size=batch_size,
-        random_state=config.random_state
+        batch_size=batch_size
     )
     
     train_ds = data_gen.get_train_dataset()
