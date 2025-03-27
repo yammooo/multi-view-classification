@@ -2,14 +2,17 @@ from model_helpers import apply_freeze_config
 
 def build_model(config):
     """
-    Build model based on configuration.
+    Build multi-view model based on configuration.
+    
     Expected keys:
-      - fusion_strategy: "early", "late", "score"
-      - backbone: e.g., "resnet50", "resnet101", "efficientnet"
-      - fusion_method: e.g., "max" or "conv"
-      - input_shape: input dimensions
+      - fusion_strategy: "early", "late", or "score"
+      - backbone_model: e.g., "resnet50", "resnet151", "efficientnetb0", etc.
+      - fusion_method: e.g., "max", "conv", "fc", "sum", "prod"
+      - input_shape: input dimensions (e.g., (224,224,3))
       - num_classes: number of output classes
-      - freeze_config: dictionary that defines how to freeze blocks
+      - freeze_config: configuration dict for freezing layers
+      - fusion_depth: (for early fusion) the insertion layer name
+      - next_start_layer: (for early fusion) the next branch start layer name
     """
     fusion_strategy = config.get("fusion_strategy")
     backbone = config.get("backbone_model")
@@ -19,38 +22,39 @@ def build_model(config):
     freeze_config = config.get("freeze_config", None)
     
     if fusion_strategy == "early":
-        if backbone == "resnet50":
-            from models.early_fusion.resnet50_early import build_5_view_resnet50_early
-
-            insertion_layer = config.get("fusion_depth")
-            next_start_layer = config.get("next_start_layer")
-
-            model = build_5_view_resnet50_early(
-                input_shape=input_shape,
-                insertion_layer=insertion_layer,
-                next_start_layer=next_start_layer,
-                num_classes=num_classes,
-                fusion_method=fusion_method
-            )
-
-            if freeze_config:
-                apply_freeze_config(model, freeze_config)
-            
-            return model
+        from models.early_fusion.early_backbone import build_early_backbone
+        insertion_layer = config.get("fusion_depth")
+        next_start_layer = config.get("next_start_layer")
+        model = build_early_backbone(
+            input_shape=input_shape,
+            insertion_layer=insertion_layer,
+            next_start_layer=next_start_layer,
+            num_classes=num_classes,
+            backbone=backbone,
+            fusion_method=fusion_method
+        )
+        if freeze_config:
+            apply_freeze_config(model, freeze_config)
+        return model
     elif fusion_strategy == "late":
-        if backbone == "resnet50":
-            from models.late_fusion.resnet50_late import build_5_view_resnet50_late
-            model = build_5_view_resnet50_late(input_shape=input_shape,
-                                               num_classes=num_classes,
-                                               fusion_method=fusion_method)
-            if freeze_config:
-                apply_freeze_config(model, freeze_config)
-            return model
+        from models.late_fusion.late_backbone import build_late_backbone
+        model = build_late_backbone(
+            input_shape=input_shape,
+            num_classes=num_classes,
+            backbone=backbone,
+            fusion_method=fusion_method
+        )
+        if freeze_config:
+            apply_freeze_config(model, freeze_config)
+        return model
     elif fusion_strategy == "score":
-        from models.score_fusion.resnet50_score import build_5_view_resnet50_score
-        model = build_5_view_resnet50_score(input_shape=input_shape,
-                                            num_classes=num_classes,
-                                            fusion_method=fusion_method)
+        from models.score_fusion.score_backbone import build_score_backbone
+        model = build_score_backbone(
+            input_shape=input_shape,
+            num_classes=num_classes,
+            backbone=backbone,
+            fusion_method=fusion_method
+        )
         if freeze_config:
             apply_freeze_config(model, freeze_config)
         return model
