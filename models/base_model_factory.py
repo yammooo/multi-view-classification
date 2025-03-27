@@ -6,7 +6,7 @@ def base_model(backbone, input_shape, include_top=False):
     backbone = backbone.lower()
     if backbone == "resnet50":
         base_model = keras.applications.ResNet50(weights='imagenet', include_top=include_top, input_shape=input_shape)
-    elif backbone == "resnet151":
+    elif backbone == "resnet152":
         base_model = keras.applications.ResNet152(weights='imagenet', include_top=include_top, input_shape=input_shape)
     elif backbone == "efficientnetb0":
         base_model = keras.applications.EfficientNetB0(weights='imagenet', include_top=include_top, input_shape=input_shape)
