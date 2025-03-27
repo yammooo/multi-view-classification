@@ -14,6 +14,8 @@ def base_model(backbone, input_shape, include_top=False):
         base_model = keras.applications.EfficientNetB7(weights='imagenet', include_top=include_top, input_shape=input_shape)
     elif backbone == "convnextbase":
         base_model = keras.applications.ConvNeXtBase(weights="imagenet", include_top=include_top, input_shape=input_shape)
+    elif backbone == "convnextsmall":
+        base_model = keras.applications.ConvNeXtSmall(weights="imagenet", include_top=include_top, input_shape=input_shape)
     elif backbone == "vitb16":
 
         import keras_hub

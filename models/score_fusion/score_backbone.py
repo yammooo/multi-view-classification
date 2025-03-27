@@ -78,7 +78,7 @@ if __name__ == "__main__":
     # Build the model
     model = build_score_backbone(
         num_classes=5,
-        backbone="resnet152",
+        backbone="convnextsmall",
         fusion_method="sum"
     )
     model.summary()
@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # Import and apply a freeze configuration from model_helpers.
     # For example, freezing any layer whose name contains "conv1", "conv2", etc.
     from model_helpers import apply_freeze_config
-    freeze_config = {"freeze_blocks": ["conv1", "conv2", "conv3"]}
+    freeze_config = {"freeze_blocks": ["stem", "stage_0"]}
     apply_freeze_config(model, freeze_config)
     
     print("\nAfter applying freeze config:")
