@@ -7,3 +7,5 @@ seaborn
 gdown
 scikit-learn
 vastai
+tensorflow_hub
+keras_hub

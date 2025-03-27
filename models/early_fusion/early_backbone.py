@@ -1,8 +1,15 @@
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import tensorflow as tf
 import keras
 from keras.applications import ResNet50
 from keras.models import Model
 from keras.layers import Input, Concatenate, Conv2D, Layer, BatchNormalization
+
+import base_model_factory
 
 @keras.saving.register_keras_serializable()
 class StackReduceLayer(Layer):
@@ -15,8 +22,9 @@ class StackReduceLayer(Layer):
         base_config = super(StackReduceLayer, self).get_config()
         return base_config
 
-def split_resnet50(insertion_layer_name, next_start_layer_name, input_shape=(512, 512, 3)):
-    full_model = ResNet50(weights="imagenet", include_top=False, input_shape=input_shape)
+def split_backbone(backbone, insertion_layer_name, next_start_layer_name, input_shape=(512, 512, 3)):
+    full_model = base_model_factory.base_model(backbone, input_shape, include_top=False)
+
     full_model.trainable = True
 
     part1 = Model(
@@ -40,12 +48,13 @@ def split_resnet50(insertion_layer_name, next_start_layer_name, input_shape=(512
     
     return part1, part2
 
-def build_5_view_resnet50_early(input_shape=(224, 224, 3),
-                                insertion_layer="conv2_block3_out",
-                                next_start_layer="conv3_block1_1_conv",
-                                num_classes=5,
-                                fusion_method="max"):
-    part1, part2 = split_resnet50(insertion_layer, next_start_layer, input_shape=input_shape)
+def build_early_backbone(input_shape=(224, 224, 3),
+                         insertion_layer="conv2_block3_out",
+                         next_start_layer="conv3_block1_1_conv",
+                         num_classes=5,
+                         backbone="resnet50",
+                         fusion_method="max"):
+    part1, part2 = split_backbone(backbone, insertion_layer, next_start_layer, input_shape=input_shape)
     
     input_views = []
     branch_outputs = []
@@ -119,10 +128,11 @@ if __name__ == "__main__":
     from model_helpers import apply_freeze_config
 
     # Build the model
-    model = build_5_view_resnet50_early(
-        insertion_layer="conv2_block3_out",
-        next_start_layer="conv3_block1_1_conv",
+    model = build_early_backbone(
+        insertion_layer="block2b_add",
+        next_start_layer="block3a_expand_conv",
         num_classes=5,
+        backbone="efficientnetb0",
         fusion_method="conv"
     )
     model.summary()

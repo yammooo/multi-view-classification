@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
@@ -23,7 +24,7 @@ class MemoryClearCallback(tf.keras.callbacks.Callback):
         gc.collect()
         print(f"Epoch {epoch} ended—garbage collection triggered.")
 
-def main(optional_config=None):
+def train(optional_config=None):
 
     # ------------------- Default Configuration -------------------
     default_config = {
@@ -194,4 +195,14 @@ def main(optional_config=None):
     wandb.finish()
     
 if __name__ == "__main__":
-    main()
+    # If a JSON configuration is passed as the first argument, parse it.
+    optional_config = None
+    if len(sys.argv) > 1:
+        try:
+            optional_config = json.loads(sys.argv[1])
+            print("Using configuration overrides: ", optional_config)
+        except Exception as e:
+            print("Error parsing configuration JSON:", e)
+            sys.exit(1)
+    
+    train(optional_config)
