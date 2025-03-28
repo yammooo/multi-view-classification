@@ -6,16 +6,25 @@ def base_model(backbone, input_shape, include_top=False):
     backbone = backbone.lower()
     if backbone == "resnet50":
         base_model = keras.applications.ResNet50(weights='imagenet', include_top=include_top, input_shape=input_shape)
+        preprocess_fn = keras.applications.resnet.preprocess_input
     elif backbone == "resnet152":
         base_model = keras.applications.ResNet152(weights='imagenet', include_top=include_top, input_shape=input_shape)
+        preprocess_fn = keras.applications.resnet.preprocess_input
     elif backbone == "efficientnetb0":
         base_model = keras.applications.EfficientNetB0(weights='imagenet', include_top=include_top, input_shape=input_shape)
+        preprocess_fn = keras.applications.efficientnet.preprocess_input
     elif backbone == "efficientnetb7":
         base_model = keras.applications.EfficientNetB7(weights='imagenet', include_top=include_top, input_shape=input_shape)
+        preprocess_fn = keras.applications.efficientnet.preprocess_input
     elif backbone == "convnextbase":
         base_model = keras.applications.ConvNeXtBase(weights="imagenet", include_top=include_top, input_shape=input_shape)
+        preprocess_fn = None
     elif backbone == "convnextsmall":
         base_model = keras.applications.ConvNeXtSmall(weights="imagenet", include_top=include_top, input_shape=input_shape)
+        preprocess_fn = None
+    elif backbone == "convnexttiny":
+        base_model = keras.applications.ConvNeXtTiny(weights="imagenet", include_top=include_top, input_shape=input_shape)
+        preprocess_fn = None
     elif backbone == "vitb16":
 
         import keras_hub
@@ -31,7 +40,10 @@ def base_model(backbone, input_shape, include_top=False):
         # Create a functional model that outputs the features.
         base_model = keras.Model(inputs=input_layer, outputs=features)
 
+        preprocess_fn = keras_hub.models.ViTImageClassifierPreprocessor.from_preset(
+            "vit_base_patch16_224_imagenet"
+        )
     else:
         raise ValueError("Unsupported backbone")
     
-    return base_model
+    return base_model, preprocess_fn

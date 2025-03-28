@@ -18,9 +18,7 @@ class StackReduceLayer(keras.layers.Layer):
         base_config = super(StackReduceLayer, self).get_config()
         return base_config
 
-def create_view_branch(backbone, input_shape, num_classes):
-
-    base_model = base_model_factory.base_model(backbone, input_shape, include_top=False)
+def create_view_branch(base_model, input_shape, num_classes):
 
     base_model.trainable = True
 
@@ -44,6 +42,8 @@ def create_view_branch(backbone, input_shape, num_classes):
 
 def build_late_backbone(input_shape=(224, 224, 3), num_classes=5, backbone="resnet50",fusion_method='fc'):
     
+    base_model, preprocess_fn = base_model_factory.base_model(backbone, input_shape, include_top=False)
+
     input_views = []
     branch_outputs = []
     
@@ -51,7 +51,7 @@ def build_late_backbone(input_shape=(224, 224, 3), num_classes=5, backbone="resn
     for i in range(5):
         inp = keras.layers.Input(shape=input_shape, name=f'input_view_{i+1}')
         input_views.append(inp)
-        branch = create_view_branch(backbone, input_shape, num_classes)
+        branch = create_view_branch(base_model, input_shape, num_classes)
         branch_out = branch(inp)
         print(f"Branch {i+1} output shape:", branch_out.shape)
         branch_outputs.append(branch_out)
@@ -84,7 +84,7 @@ def build_late_backbone(input_shape=(224, 224, 3), num_classes=5, backbone="resn
     output._group = "classifier"
 
     multi_view_model = keras.Model(inputs=input_views, outputs=output)
-    return multi_view_model
+    return multi_view_model, preprocess_fn
 
 if __name__ == "__main__":
 

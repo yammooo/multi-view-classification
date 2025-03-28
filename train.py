@@ -78,10 +78,9 @@ def train(optional_config=None):
         input_shape=input_shape,
         batch_size=batch_size,
         random_state=config.random_state,
+        preprocess_fn=None  # No preprocessing yet.
     )
     
-    train_ds = data_gen.get_train_dataset()
-    test_ds = data_gen.get_test_dataset()
     class_names = data_gen.get_class_names()
     num_classes = data_gen.get_num_classes()
 
@@ -96,6 +95,13 @@ def train(optional_config=None):
 
     # ------------------- Building Model -------------------
 
+    print("Building model via factory...")
+    model, preprocess_fn = build_model(config)
+
+    # Update the generator with the obtained preprocessing function.
+    # SET THIS BEFORE train_ds AND test_ds
+    data_gen.set_preprocess_fn(preprocess_fn)
+
     steps_per_epoch = len(data_gen.train_samples) // batch_size
     if len(data_gen.train_samples) % batch_size != 0:
         steps_per_epoch += 1
@@ -105,9 +111,6 @@ def train(optional_config=None):
         validation_steps += 1
 
     total_steps = config.epochs * steps_per_epoch
-
-    print("Building model via factory...")
-    model = build_model(config)
     
     lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
         initial_learning_rate=config.initial_learning_rate,
@@ -155,6 +158,10 @@ def train(optional_config=None):
     # ------------------- Training and Evaluation on Base Dataset -------------------
     
     print("Training model...")
+
+    train_ds = data_gen.get_train_dataset()
+    test_ds = data_gen.get_test_dataset()
+
 
     history = model.fit(
         train_ds,

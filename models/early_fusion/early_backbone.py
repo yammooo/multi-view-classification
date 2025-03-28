@@ -22,9 +22,7 @@ class StackReduceLayer(Layer):
         base_config = super(StackReduceLayer, self).get_config()
         return base_config
 
-def split_backbone(backbone, insertion_layer_name, next_start_layer_name, input_shape=(512, 512, 3)):
-    full_model = base_model_factory.base_model(backbone, input_shape, include_top=False)
-
+def split_backbone(full_model, insertion_layer_name, next_start_layer_name, input_shape=(512, 512, 3)):
     full_model.trainable = True
 
     part1 = Model(
@@ -54,7 +52,10 @@ def build_early_backbone(input_shape=(224, 224, 3),
                          num_classes=5,
                          backbone="resnet50",
                          fusion_method="max"):
-    part1, part2 = split_backbone(backbone, insertion_layer, next_start_layer, input_shape=input_shape)
+    
+    full_model, preprocess_fn = base_model_factory.base_model(backbone, input_shape, include_top=False)
+
+    part1, part2 = split_backbone(full_model, insertion_layer, next_start_layer, input_shape=input_shape)
     
     input_views = []
     branch_outputs = []
@@ -116,7 +117,7 @@ def build_early_backbone(input_shape=(224, 224, 3),
     output = pred_layer(x)
     
     multi_view_model = Model(inputs=input_views, outputs=output)
-    return multi_view_model
+    return multi_view_model, preprocess_fn
 
 if __name__ == "__main__":
 

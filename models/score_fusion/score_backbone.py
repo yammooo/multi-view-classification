@@ -8,9 +8,7 @@ import keras
 import base_model_factory
 
 
-def create_view_branch(backbone, input_shape, num_classes):
-
-    base_model = base_model_factory.base_model(backbone, input_shape, include_top=False)
+def create_view_branch(base_model, input_shape, num_classes, backbone):
 
     base_model.trainable = True
 
@@ -37,6 +35,9 @@ def create_view_branch(backbone, input_shape, num_classes):
     return branch_model
 
 def build_score_backbone(input_shape=(224, 224, 3), num_classes=5, backbone="resnet50",fusion_method='fc'):
+
+    base_model, preprocess_fn = base_model_factory.base_model(backbone, input_shape, include_top=False)
+
     input_views = []
     branch_outputs = []
     
@@ -44,7 +45,7 @@ def build_score_backbone(input_shape=(224, 224, 3), num_classes=5, backbone="res
     for i in range(5):
         inp = keras.layers.Input(shape=input_shape, name=f'input_view_{i+1}')
         input_views.append(inp)
-        branch = create_view_branch(backbone, input_shape, num_classes)
+        branch = create_view_branch(base_model, input_shape, num_classes, backbone)
         branch_out = branch(inp)
         print(f"Branch {i+1} output shape:", branch_out.shape)
         branch_outputs.append(branch_out)
@@ -64,7 +65,7 @@ def build_score_backbone(input_shape=(224, 224, 3), num_classes=5, backbone="res
 
     # Create the multi-view model with 5 inputs.
     multi_view_model = keras.Model(inputs=input_views, outputs=output)
-    return multi_view_model
+    return multi_view_model, preprocess_fn
 
 if __name__ == "__main__":
 
@@ -76,9 +77,9 @@ if __name__ == "__main__":
     from model_helpers import apply_freeze_config
 
     # Build the model
-    model = build_score_backbone(
+    model, preprocessing_fn = build_score_backbone(
         num_classes=5,
-        backbone="convnextsmall",
+        backbone="convnexttiny",
         fusion_method="sum"
     )
     model.summary()
@@ -97,7 +98,7 @@ if __name__ == "__main__":
     # Import and apply a freeze configuration from model_helpers.
     # For example, freezing any layer whose name contains "conv1", "conv2", etc.
     from model_helpers import apply_freeze_config
-    freeze_config = {"freeze_blocks": ["stem", "stage_0"]}
+    freeze_config = {"freeze_blocks": []}
     apply_freeze_config(model, freeze_config)
     
     print("\nAfter applying freeze config:")

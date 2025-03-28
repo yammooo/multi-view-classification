@@ -25,7 +25,7 @@ def build_model(config):
         from models.early_fusion.early_backbone import build_early_backbone
         insertion_layer = config.get("fusion_depth")
         next_start_layer = config.get("next_start_layer")
-        model = build_early_backbone(
+        model, preprocess_fn = build_early_backbone(
             input_shape=input_shape,
             insertion_layer=insertion_layer,
             next_start_layer=next_start_layer,
@@ -35,10 +35,10 @@ def build_model(config):
         )
         if freeze_config:
             apply_freeze_config(model, freeze_config)
-        return model
+        return model, preprocess_fn
     elif fusion_strategy == "late":
         from models.late_fusion.late_backbone import build_late_backbone
-        model = build_late_backbone(
+        model, preprocess_fn = build_late_backbone(
             input_shape=input_shape,
             num_classes=num_classes,
             backbone=backbone,
@@ -46,10 +46,10 @@ def build_model(config):
         )
         if freeze_config:
             apply_freeze_config(model, freeze_config)
-        return model
+        return model, preprocess_fn
     elif fusion_strategy == "score":
         from models.score_fusion.score_backbone import build_score_backbone
-        model = build_score_backbone(
+        model, preprocess_fn = build_score_backbone(
             input_shape=input_shape,
             num_classes=num_classes,
             backbone=backbone,
@@ -57,6 +57,6 @@ def build_model(config):
         )
         if freeze_config:
             apply_freeze_config(model, freeze_config)
-        return model
+        return model, preprocess_fn
     else:
         raise ValueError("Unknown fusion strategy: " + fusion_strategy)
