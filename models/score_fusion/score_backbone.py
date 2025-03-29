@@ -79,7 +79,7 @@ if __name__ == "__main__":
     # Build the model
     model, preprocessing_fn = build_score_backbone(
         num_classes=5,
-        backbone="convnexttiny",
+        backbone="swintiny",
         fusion_method="sum"
     )
     model.summary()

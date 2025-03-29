@@ -9,3 +9,4 @@ scikit-learn
 vastai
 tensorflow_hub
 keras_hub
+tfswin
