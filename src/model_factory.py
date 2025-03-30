@@ -6,13 +6,14 @@ def build_model(config):
     
     Expected keys:
       - fusion_strategy: "early", "late", or "score"
-      - backbone_model: e.g., "resnet50", "resnet151", "efficientnetb0", etc.
+      - backbone_model: e.g., "resnet50", "resnet152", "efficientnetb0", etc.
       - fusion_method: e.g., "max", "conv", "fc", "sum", "prod"
       - input_shape: input dimensions (e.g., (224,224,3))
       - num_classes: number of output classes
       - freeze_config: configuration dict for freezing layers
       - fusion_depth: (for early fusion) the insertion layer name
       - next_start_layer: (for early fusion) the next branch start layer name
+      - share_weights: (for score fusion) weight sharing strategy, defaults to "none"
     """
     fusion_strategy = config.get("fusion_strategy")
     backbone = config.get("backbone_model")
@@ -20,6 +21,8 @@ def build_model(config):
     input_shape = config.get("input_shape")
     num_classes = config.get("num_classes")
     freeze_config = config.get("freeze_config", None)
+    # New parameter for weight sharing. Defaults to "none".
+    share_weights = config.get("share_weights", "none")
     
     if fusion_strategy == "early":
         from models.early_fusion.early_backbone import build_early_backbone
@@ -53,7 +56,8 @@ def build_model(config):
             input_shape=input_shape,
             num_classes=num_classes,
             backbone=backbone,
-            fusion_method=fusion_method
+            fusion_method=fusion_method,
+            share_weights=share_weights
         )
         if freeze_config:
             apply_freeze_config(model, freeze_config)

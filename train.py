@@ -44,6 +44,7 @@ def train(optional_config=None):
         "fusion_strategy": "early",
         "fusion_depth": "conv2_block3_out",
         "next_start_layer": "conv3_block1_1_conv",
+        "share_weights": "none",
         "fusion_method": "max",
         "freeze_config": {"freeze_blocks": ["conv1", "conv2", "conv3"]},
 
