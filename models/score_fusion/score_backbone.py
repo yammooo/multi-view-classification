@@ -13,9 +13,10 @@ class LogProductFusionLayer(keras.layers.Layer):
 
     def call(self, inputs, **kwargs):
         # Inputs should be a list of probability tensors.
+        n = len(inputs)
         logs = [tf.math.log(x + self.epsilon) for x in inputs]
-        summed = tf.add_n(logs)
-        return tf.exp(summed)
+        mean_log = tf.add_n(logs) / float(n)
+        return tf.exp(mean_log)
 
     def get_config(self):
         config = super(LogProductFusionLayer, self).get_config()
