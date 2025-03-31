@@ -19,7 +19,7 @@ def create_classifier_branch_model(features_input, num_classes, branch_id, backb
     x = keras.layers.Dense(1024, activation='relu', name=f'fc_1024_{branch_id}')(pooled)
     x = keras.layers.BatchNormalization(name=f"bn_fc_{branch_id}")(x)
     x = keras.layers.Dropout(0.25, name=f"dropout_{branch_id}")(x)
-    output = keras.layers.Dense(num_classes, activation='softmax', name=f'predictions_{branch_id}')(x)
+    output = keras.layers.Dense(num_classes, name=f'predictions_{branch_id}')(x)
     return output
 
 def create_branch_model(backbone_model, input_shape, num_classes, branch_id, backbone):
@@ -126,10 +126,11 @@ if __name__ == "__main__":
     # Test with weight sharing among first four views.
     model, preprocessing_fn = build_score_backbone(
         num_classes=5,
-        backbone="efficientnetb0",
+        backbone="resnet50",
         fusion_method="sum",
-        share_weights="first_four"  # Options: "none", "first_four", "all"
+        share_weights="none"  # Options: "none", "first_four", "all"
     )
+
     model.summary()
 
     # def print_trainable_status(model_instance, prefix=""):

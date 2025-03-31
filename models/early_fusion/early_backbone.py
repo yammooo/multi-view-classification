@@ -22,7 +22,10 @@ class StackReduceLayer(Layer):
         base_config = super(StackReduceLayer, self).get_config()
         return base_config
 
-def split_backbone(full_model, insertion_layer_name, next_start_layer_name, input_shape=(512, 512, 3)):
+def split_backbone(backbone, insertion_layer_name, next_start_layer_name, input_shape=(512, 512, 3)):
+    
+    full_model, _ = base_model_factory.base_model(backbone, input_shape, include_top=False)
+    
     full_model.trainable = True
 
     part1 = Model(
@@ -53,9 +56,9 @@ def build_early_backbone(input_shape=(224, 224, 3),
                          backbone="resnet50",
                          fusion_method="max"):
     
-    full_model, preprocess_fn = base_model_factory.base_model(backbone, input_shape, include_top=False)
+    _, preprocess_fn = base_model_factory.base_model(backbone, input_shape, include_top=False)
 
-    part1, part2 = split_backbone(full_model, insertion_layer, next_start_layer, input_shape=input_shape)
+    part1, part2 = split_backbone(backbone, insertion_layer, next_start_layer, input_shape=input_shape)
     
     input_views = []
     branch_outputs = []
@@ -129,31 +132,32 @@ if __name__ == "__main__":
     from model_helpers import apply_freeze_config
 
     # Build the model
-    model = build_early_backbone(
-        insertion_layer="block2b_add",
-        next_start_layer="block3a_expand_conv",
+    model, _ = build_early_backbone(
+        insertion_layer="conv2_block3_out",
+        next_start_layer="conv3_block1_1_conv",
         num_classes=5,
-        backbone="efficientnetb0",
-        fusion_method="conv"
+        backbone="resnet50",
+        fusion_method="max"
     )
+
     model.summary()
     
-    # Function to print each layer's trainable status recursively.
-    def print_trainable_status(model_instance, prefix=""):
-        for layer in model_instance.layers:
-            if isinstance(layer, tf.keras.Model):
-                print_trainable_status(layer, prefix=prefix + "  ")
-            else:
-                print(f"{prefix}{layer.name}: trainable={layer.trainable}")
+    # # Function to print each layer's trainable status recursively.
+    # def print_trainable_status(model_instance, prefix=""):
+    #     for layer in model_instance.layers:
+    #         if isinstance(layer, tf.keras.Model):
+    #             print_trainable_status(layer, prefix=prefix + "  ")
+    #         else:
+    #             print(f"{prefix}{layer.name}: trainable={layer.trainable}")
     
-    print("\nBefore applying freeze config:")
-    print_trainable_status(model)
+    # print("\nBefore applying freeze config:")
+    # print_trainable_status(model)
     
-    # Import and apply a freeze configuration from model_helpers.
-    # For example, freezing any layer whose name contains "conv1", "conv2", etc.
-    from model_helpers import apply_freeze_config
-    freeze_config = {"freeze_blocks": ["conv1", "conv2", "conv3"]}
-    apply_freeze_config(model, freeze_config)
+    # # Import and apply a freeze configuration from model_helpers.
+    # # For example, freezing any layer whose name contains "conv1", "conv2", etc.
+    # from model_helpers import apply_freeze_config
+    # freeze_config = {"freeze_blocks": ["conv1", "conv2", "conv3"]}
+    # apply_freeze_config(model, freeze_config)
     
-    print("\nAfter applying freeze config:")
-    print_trainable_status(model)
+    # print("\nAfter applying freeze config:")
+    # print_trainable_status(model)

@@ -18,7 +18,9 @@ class StackReduceLayer(keras.layers.Layer):
         base_config = super(StackReduceLayer, self).get_config()
         return base_config
 
-def create_view_branch(base_model, input_shape, num_classes):
+def create_view_branch(backbone, input_shape, num_classes):
+
+    base_model, _ = base_model_factory.base_model(backbone, input_shape, include_top=False)
 
     base_model.trainable = True
 
@@ -42,7 +44,7 @@ def create_view_branch(base_model, input_shape, num_classes):
 
 def build_late_backbone(input_shape=(224, 224, 3), num_classes=5, backbone="resnet50",fusion_method='fc'):
     
-    base_model, preprocess_fn = base_model_factory.base_model(backbone, input_shape, include_top=False)
+    _, preprocess_fn = base_model_factory.base_model(backbone, input_shape, include_top=False)
 
     input_views = []
     branch_outputs = []
@@ -51,7 +53,7 @@ def build_late_backbone(input_shape=(224, 224, 3), num_classes=5, backbone="resn
     for i in range(5):
         inp = keras.layers.Input(shape=input_shape, name=f'input_view_{i+1}')
         input_views.append(inp)
-        branch = create_view_branch(base_model, input_shape, num_classes)
+        branch = create_view_branch(backbone, input_shape, num_classes)
         branch_out = branch(inp)
         print(f"Branch {i+1} output shape:", branch_out.shape)
         branch_outputs.append(branch_out)
@@ -96,29 +98,29 @@ if __name__ == "__main__":
     from model_helpers import apply_freeze_config
 
     # Build the model
-    model = build_late_backbone(
+    model, _ = build_late_backbone(
         num_classes=5,
-        backbone="efficientnetb0",
-        fusion_method="fc"
+        backbone="resnet50",
+        fusion_method="max"
     )
     model.summary()
     
-    # Function to print each layer's trainable status recursively.
-    def print_trainable_status(model_instance, prefix=""):
-        for layer in model_instance.layers:
-            if isinstance(layer, tf.keras.Model):
-                print_trainable_status(layer, prefix=prefix + "  ")
-            else:
-                print(f"{prefix}{layer.name}: trainable={layer.trainable}")
+    # # Function to print each layer's trainable status recursively.
+    # def print_trainable_status(model_instance, prefix=""):
+    #     for layer in model_instance.layers:
+    #         if isinstance(layer, tf.keras.Model):
+    #             print_trainable_status(layer, prefix=prefix + "  ")
+    #         else:
+    #             print(f"{prefix}{layer.name}: trainable={layer.trainable}")
     
-    print("\nBefore applying freeze config:")
-    print_trainable_status(model)
+    # print("\nBefore applying freeze config:")
+    # print_trainable_status(model)
     
-    # Import and apply a freeze configuration from model_helpers.
-    # For example, freezing any layer whose name contains "conv1", "conv2", etc.
-    from model_helpers import apply_freeze_config
-    freeze_config = {"freeze_blocks": ["conv1", "conv2", "conv3", "conv4", "conv5"]}
-    apply_freeze_config(model, freeze_config)
+    # # Import and apply a freeze configuration from model_helpers.
+    # # For example, freezing any layer whose name contains "conv1", "conv2", etc.
+    # from model_helpers import apply_freeze_config
+    # freeze_config = {"freeze_blocks": ["conv1", "conv2", "conv3", "conv4", "conv5"]}
+    # apply_freeze_config(model, freeze_config)
     
-    print("\nAfter applying freeze config:")
-    print_trainable_status(model)
+    # print("\nAfter applying freeze config:")
+    # print_trainable_status(model)
