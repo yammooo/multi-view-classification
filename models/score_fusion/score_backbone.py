@@ -5,6 +5,22 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import tensorflow as tf
 import keras
 import base_model_factory
+@keras.saving.register_keras_serializable()
+class LogProductFusionLayer(keras.layers.Layer):
+    def __init__(self, epsilon=1e-7, **kwargs):
+        super(LogProductFusionLayer, self).__init__(**kwargs)
+        self.epsilon = epsilon
+
+    def call(self, inputs, **kwargs):
+        # Inputs should be a list of probability tensors.
+        logs = [tf.math.log(x + self.epsilon) for x in inputs]
+        summed = tf.add_n(logs)
+        return tf.exp(summed)
+
+    def get_config(self):
+        config = super(LogProductFusionLayer, self).get_config()
+        config.update({"epsilon": self.epsilon})
+        return config
 
 def create_classifier_branch_model(features_input, num_classes, branch_id, backbone):
     """
@@ -19,7 +35,7 @@ def create_classifier_branch_model(features_input, num_classes, branch_id, backb
     x = keras.layers.Dense(1024, activation='relu', name=f'fc_1024_{branch_id}')(pooled)
     x = keras.layers.BatchNormalization(name=f"bn_fc_{branch_id}")(x)
     x = keras.layers.Dropout(0.25, name=f"dropout_{branch_id}")(x)
-    output = keras.layers.Dense(num_classes, name=f'predictions_{branch_id}')(x)
+    output = keras.layers.Dense(num_classes, activation='softmax', name=f'predictions_{branch_id}')(x)
     return output
 
 def create_branch_model(backbone_model, input_shape, num_classes, branch_id, backbone):
@@ -106,7 +122,7 @@ def build_score_backbone(input_shape=(224, 224, 3), num_classes=5, backbone="res
     if fusion_method == 'sum':
         fused = keras.layers.Add()(branch_outputs)
     elif fusion_method == 'prod':
-        fused = keras.layers.Multiply()(branch_outputs)
+        fused = LogProductFusionLayer(name="prod_fusion")(branch_outputs)
     elif fusion_method == 'max':
         fused = keras.layers.Maximum()(branch_outputs)
     else:
