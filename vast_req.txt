@@ -1,0 +1,12 @@
+-r requirements/requirements-tensorflow-cuda.txt
+
+wandb
+matplotlib
+numpy
+seaborn
+gdown
+scikit-learn
+vastai
+tensorflow_hub
+keras_hub
+tfswin

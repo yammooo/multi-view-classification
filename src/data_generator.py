@@ -4,7 +4,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
 import matplotlib.pyplot as plt
-from PIL import Image  # For cropping
 
 class SimpleMultiViewDataGenerator:
     def __init__(self,
@@ -26,7 +25,6 @@ class SimpleMultiViewDataGenerator:
             random_state (int): For reproducibility.
             preprocess_fn (function): A function that takes a numpy image array and returns a preprocessed array.
                                       For example, use tf.keras.applications.resnet50.preprocess_input.
-                                      If None, it defaults to ResNet50’s preprocessing.
             crop_to_square (bool): If True, center-crop image to a square before resizing.
         """
         self.data_dir = data_dir
@@ -36,10 +34,14 @@ class SimpleMultiViewDataGenerator:
         self.test_split = test_split
         self.random_state = random_state
         self.preprocess_fn = preprocess_fn
-        self.crop_to_square = crop_to_square  # Save the flag
+        self.crop_to_square = crop_to_square
         
         self._parse_dataset()
         self._split_dataset()
+
+    def set_preprocess_fn(self, preprocess_fn):
+        """Allows external updating of the preprocess function after initialization."""
+        self.preprocess_fn = preprocess_fn
 
     def _parse_dataset(self):
         base_view = self.views[0]
@@ -142,7 +144,7 @@ class SimpleMultiViewDataGenerator:
         return tf.data.Dataset.from_generator(
             lambda: self._data_generator(self.train_samples),
             output_signature=output_signature
-        ).prefetch(tf.data.experimental.AUTOTUNE)
+        ).prefetch(2)
 
     def get_test_dataset(self):
         output_signature = (
@@ -153,7 +155,7 @@ class SimpleMultiViewDataGenerator:
         return tf.data.Dataset.from_generator(
             lambda: self._data_generator(self.test_samples),
             output_signature=output_signature
-        ).prefetch(tf.data.experimental.AUTOTUNE)
+        ).prefetch(2)
 
     def get_class_names(self):
         return self.category_list

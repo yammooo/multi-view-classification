@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
@@ -12,34 +13,60 @@ from evaluation import evaluate_and_log_model
 import wandb
 from wandb.integration.keras import WandbMetricsLogger, WandbModelCheckpoint
 
-from models.early_fusion.resnet50_early import build_5_view_resnet50_early
-
+from model_factory import build_model
 np.random.seed(42)
 tf.random.set_seed(42)
 
-def main():
+import gc
 
-    # ------------------- Configuration -------------------
+class MemoryClearCallback(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        gc.collect()
+        print(f"Epoch {epoch} ended—garbage collection triggered.")
 
+def train(optional_config=None):
+
+    # ------------------- Default Configuration -------------------
+    default_config = {
+        "dataset_artifact": "synt+real_75+5_dataset:v0",
+        "input_shape": (224, 224, 3),
+        "batch_size": 16,
+        "epochs": 10,
+        "optimizer": "AdamW",
+        "backbone_model": "resnet50",
+        "loss": "categorical_crossentropy",
+        "label_smoothing": 0.1,
+
+        "learning_rate_scheduler": "cosine",
+        "initial_learning_rate": 1e-5,
+        "alpha": 1e-7,
+
+        "fusion_strategy": "early",
+        "fusion_depth": "conv2_block3_out",
+        "next_start_layer": "conv3_block1_1_conv",
+        "share_weights": "none",
+        "fusion_method": "max",
+        "freeze_config": {"freeze_blocks": ["conv1", "conv2", "conv3"]},
+
+        "differential_lr": False,
+
+        "random_state": 42,
+    }
+    
+    # Merge optional configuration if provided.
+    if optional_config:
+        default_config.update(optional_config)
+    
+    # ------------------- Wandb Initialization -------------------
     wandb.init(
         project="5-view-classification",
-        config={
-            "dataset_artifact": "synt+real_75+5_dataset:v0",
-            "input_shape": (224, 224, 3),
-            "batch_size": 8,
-            "epochs": 7,
-            "optimizer": "adam",
-            "learning_rate": 1e-4,
-            "backbone_model": "resnet50",
-            "loss": "categorical_crossentropy",
-            "fusion_type": "early",
-            "fusion_depth": "conv2_block3_out",
-            "fusion_method": "max",
-        }
+        job_type="train",
+        config=default_config
     )
     config = wandb.config
     
-    data_dir = r"/home/yammo/C:/Users/gianm/Development/blender-dataset-gen/data/synt+real_75+5_dataset_v0"
+    base_dir = r"/root"
+    ds_dir = os.path.join(base_dir, "synt+real_75+5_dataset_v0")
     input_shape = config.input_shape
     batch_size = config.batch_size
 
@@ -48,15 +75,17 @@ def main():
     
     print("Initializing data generator...")
     data_gen = SimpleMultiViewDataGenerator(
-        data_dir=data_dir,
+        data_dir=ds_dir,
         input_shape=input_shape,
-        batch_size=batch_size
+        batch_size=batch_size,
+        random_state=config.random_state,
+        preprocess_fn=None  # No preprocessing yet.
     )
     
-    train_ds = data_gen.get_train_dataset()
-    test_ds = data_gen.get_test_dataset()
     class_names = data_gen.get_class_names()
     num_classes = data_gen.get_num_classes()
+
+    config.num_classes = num_classes
     
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     output_dir = f"results/run_{timestamp}"
@@ -67,19 +96,12 @@ def main():
 
     # ------------------- Building Model -------------------
 
-    print("Building and compiling model...")
-    model = build_5_view_resnet50_early(
-        input_shape=input_shape,
-        num_classes=num_classes,
-        fusion_type=config.fusion_method,
-    )
-    
-    # Compile model
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(config.learning_rate),
-        loss=config.loss,
-        metrics=['accuracy']
-    )
+    print("Building model via factory...")
+    model, preprocess_fn = build_model(config)
+
+    # Update the generator with the obtained preprocessing function.
+    # SET THIS BEFORE train_ds AND test_ds
+    data_gen.set_preprocess_fn(preprocess_fn)
 
     steps_per_epoch = len(data_gen.train_samples) // batch_size
     if len(data_gen.train_samples) % batch_size != 0:
@@ -88,6 +110,25 @@ def main():
     validation_steps = len(data_gen.test_samples) // batch_size
     if len(data_gen.test_samples) % batch_size != 0:
         validation_steps += 1
+
+    total_steps = config.epochs * steps_per_epoch
+    
+    lr_schedule = tf.keras.optimizers.schedules.CosineDecay(
+        initial_learning_rate=config.initial_learning_rate,
+        decay_steps=total_steps,
+        alpha=config.alpha
+    )
+
+    optimizer = tf.keras.optimizers.AdamW(learning_rate=lr_schedule)
+
+    loss = tf.keras.losses.CategoricalCrossentropy(label_smoothing=config.label_smoothing)
+
+    # Compile model
+    model.compile(
+        optimizer=optimizer,
+        loss=loss,
+        metrics=['accuracy']
+    )
 
     # ------------------- Callbacks -------------------
 
@@ -99,24 +140,29 @@ def main():
                 save_weights_only=False,
                 verbose=1
             ),
-            tf.keras.callbacks.EarlyStopping(
-                monitor='val_accuracy',
-                patience=3,
-                restore_best_weights=True,
-                verbose=1
-            ),
-            tf.keras.callbacks.ReduceLROnPlateau(
-                monitor='val_loss',
-                factor=0.5,
-                patience=2,
-                min_lr=1e-6,
-                verbose=1
-            ),
+            MemoryClearCallback(),
+            # tf.keras.callbacks.EarlyStopping(
+            #     monitor='val_accuracy',
+            #     patience=3,
+            #     restore_best_weights=True,
+            #     verbose=1
+            # ),
+            # tf.keras.callbacks.ReduceLROnPlateau(
+            #     monitor='val_loss',
+            #     factor=0.5,
+            #     patience=2,
+            #     min_lr=1e-6,
+            #     verbose=1
+            # ),
         ]
 
     # ------------------- Training and Evaluation on Base Dataset -------------------
     
     print("Training model...")
+
+    train_ds = data_gen.get_train_dataset()
+    test_ds = data_gen.get_test_dataset()
+
 
     history = model.fit(
         train_ds,
@@ -132,11 +178,27 @@ def main():
     print("Evaluating model on test dataset...")
     evaluate_and_log_model(model, output_dir, config.dataset_artifact, test_ds, None, config, class_names, validation_steps)
 
-    # ------------------- Evaluation on Real Dataset -------------------
+    # ------------------- Evaluation on Real Datasets -------------------
+    test_edges_label =                      "test_edges:v0"
+    test_good_condition_label =             "test_good_conditions:v0"
+    test_other_objects_interference_label = "test_other_objects_interference:v0"
+    test_partial_occlusion_label =          "test_partial_occlusion:v0"
+    test_red_marker_label =                 "test_red_marker:v0"
+    test_charging_brick_label =             "test_charging_brick:v0"
 
-    real_data_dir = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset/test_v1"
+    test_edges_dir =                        os.path.join(base_dir, "artifacts", test_edges_label)
+    test_good_condition_dir =               os.path.join(base_dir, "artifacts", test_good_condition_label)
+    test_other_objects_interference_dir =   os.path.join(base_dir, "artifacts", test_other_objects_interference_label)
+    test_partial_occlusion_dir =            os.path.join(base_dir, "artifacts", test_partial_occlusion_label)
+    test_red_marker_dir =                   os.path.join(base_dir, "artifacts", test_red_marker_label)
+    test_charging_brick_dir =               os.path.join(base_dir, "artifacts", test_charging_brick_label)
     
-    evaluate_and_log_model(model, output_dir, "real_obj_dataset:v0", None, real_data_dir, config, class_names, None)
+    evaluate_and_log_model(model, output_dir, test_edges_label, None, test_edges_dir, config, class_names, None)
+    evaluate_and_log_model(model, output_dir, test_good_condition_label, None, test_good_condition_dir, config, class_names, None)
+    evaluate_and_log_model(model, output_dir, test_other_objects_interference_label, None, test_other_objects_interference_dir, config, class_names, None)
+    evaluate_and_log_model(model, output_dir, test_partial_occlusion_label, None, test_partial_occlusion_dir, config, class_names, None)
+    evaluate_and_log_model(model, output_dir, test_red_marker_label, None, test_red_marker_dir, config, class_names, None)
+    evaluate_and_log_model(model, output_dir, test_charging_brick_label, None, test_charging_brick_dir, config, class_names, None)
 
     # ------------------- Finish -------------------
     
@@ -144,4 +206,14 @@ def main():
     wandb.finish()
     
 if __name__ == "__main__":
-    main()
+    # If a JSON configuration is passed as the first argument, parse it.
+    optional_config = None
+    if len(sys.argv) > 1:
+        try:
+            optional_config = json.loads(sys.argv[1])
+            print("Using configuration overrides: ", optional_config)
+        except Exception as e:
+            print("Error parsing configuration JSON:", e)
+            sys.exit(1)
+    
+    train(optional_config)

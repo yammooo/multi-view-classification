@@ -2,10 +2,10 @@ import json
 import wandb
 import os
 
-DATASET_DIR = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset/test_v1"
+DATASET_DIR = r"/home/yammo/Development/multi-view-classification/dataset/test_charging_brick"
 
 # synt_5_obj_dataset, real_obj_dataset
-DATASET_NAME = "real_obj_dataset"
+DATASET_NAME = "test_charging_brick"
 
 # Read render parameters from JSON file
 if os.path.exists(os.path.join(DATASET_DIR, "config.json")):
@@ -14,7 +14,7 @@ if os.path.exists(os.path.join(DATASET_DIR, "config.json")):
 else:
     render_params = {}
 
-DESCRIPTION = "A synthetic dataset generated from Blender with 5 camera views. It contains 5 classes of the objects of the committee. For each object, 1500 5-view images were generated."
+DESCRIPTION = "A synthetic dataset generated from Blender with 5 camera views. It contains 80 classes: 5 from committee, 75 from thingi10k. For each object, 750 256x256 5-view images were generated."
 METADATA = {
                 "source": "Blender Dataset Generator",
                 "render_params": render_params
@@ -31,6 +31,7 @@ artifact = wandb.Artifact(DATASET_NAME, type="dataset",
                           description=DESCRIPTION,
                           metadata=METADATA)
 
+#artifact.add_file(DATASET_DIR)
 artifact.add_dir(DATASET_DIR)
 
 # Log dataset
