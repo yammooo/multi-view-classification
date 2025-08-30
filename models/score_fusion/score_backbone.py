@@ -140,12 +140,11 @@ if __name__ == "__main__":
     
     from model_helpers import apply_freeze_config
 
-    # Test with weight sharing among first four views.
     model, preprocessing_fn = build_score_backbone(
         num_classes=5,
-        backbone="resnet50",
+        backbone="ConvNeXtSmall",
         fusion_method="sum",
-        share_weights="none"  # Options: "none", "first_four", "all"
+        share_weights="all"  # Options: "none", "first_four", "all"
     )
 
     model.summary()
