@@ -95,7 +95,7 @@ def main():
             WandbMetricsLogger(log_freq=5),
             WandbModelCheckpoint(
                 filepath= os.path.join(output_dir, "model_best.keras"),
-                save_best_only=True,
+                save_best_only=False,
                 save_weights_only=False,
                 verbose=1
             ),

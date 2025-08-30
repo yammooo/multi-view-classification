@@ -2,7 +2,7 @@ import json
 import wandb
 import os
 
-DATASET_DIR = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset/test"
+DATASET_DIR = r"/home/yammo/C:/Users/gianm/Development/multi-view-classification/dataset/test_v1"
 
 # synt_5_obj_dataset, real_obj_dataset
 DATASET_NAME = "real_obj_dataset"

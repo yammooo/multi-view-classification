@@ -1,7 +1,7 @@
 import tensorflow as tf
 from keras.applications import ResNet50
 from keras.models import Model
-from keras.layers import Input, Concatenate, Conv2D, Layer
+from keras.layers import Input, Concatenate, Conv2D, Layer, Dense, GlobalAveragePooling2D, Dropout, BatchNormalization
 import keras
 
 class StackReduceLayer(Layer):
@@ -17,9 +17,14 @@ class StackReduceLayer(Layer):
         return base_config
 
 def split_resnet50(insertion_layer_name, next_start_layer_name, input_shape=(512, 512, 3)):
+    # Load the full model with pretrained weights.
     full_model = ResNet50(weights="imagenet", include_top=False, input_shape=input_shape)
-    full_model.trainable = False
-
+    # Freeze the first three blocks.
+    full_model.trainable = True
+    for layer in full_model.layers:
+        if layer.name.startswith("conv1_") or layer.name.startswith("conv2_") or layer.name.startswith("conv3_"):
+            layer.trainable = False
+    
     part1 = Model(
         inputs=full_model.input,
         outputs=full_model.get_layer(insertion_layer_name).output
@@ -55,17 +60,22 @@ def build_5_view_resnet50_early(input_shape=(224, 224, 3),
         fused = Conv2D(filters=filters,
                        kernel_size=1,
                        activation='relu',
-                       name='fused_adapter')(fused_concat)
+                       name='fused_adapter',
+                       kernel_regularizer=tf.keras.regularizers.l2(1e-4)
+                       )(fused_concat)
     else:
         raise ValueError("fusion_type must be either 'max' or 'conv'")
     
     print("Shape after fusion:", fused.shape)
     
     x = part2(fused)
-    x = tf.keras.layers.GlobalAveragePooling2D()(x)
-    x = tf.keras.layers.Dense(1024, activation='relu', name='fc_1024')(x)
-    x = keras.layers.Dropout(0.5)(x)
-    output = tf.keras.layers.Dense(num_classes, activation='softmax')(x)
+    x = GlobalAveragePooling2D()(x)
+    x = Dense(1024, activation='relu', name='fc_1024',
+              kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
+    x = BatchNormalization()(x)
+    x = Dropout(0.5)(x)
+    output = Dense(num_classes, activation='softmax',
+                   kernel_regularizer=tf.keras.regularizers.l2(1e-4))(x)
     
     multi_view_model = Model(inputs=input_views, outputs=output)
     return multi_view_model
